@@ -7,7 +7,7 @@ mkdir -p "$ci_dir"
 mode="${1:-build}"
 export IOS_PATH="${IOS_PATH:-.}" SCHEME="${SCHEME:-}" CONFIGURATION="${CONFIGURATION:-Debug}"
 export USE_SIGNING="${USE_SIGNING:-false}" JDK_VERSION="${JDK_VERSION:-17}"
-# From the selected builder.json profile: DISTRIBUTION (canonical, so internal
+# From the selected mobai.json profile: DISTRIBUTION (canonical, so internal
 # arrives as ad-hoc) picks the signing set, BUILD_ENV is a JSON object prepare() exports.
 export DISTRIBUTION="${DISTRIBUTION:-}" BUILD_ENV="${BUILD_ENV:-}"
 # Codemagic sets BUILD_NUMBER itself (its build counter), so the CLI sends
@@ -191,7 +191,7 @@ expo_prebuild() {
   echo "Prebuilding $bundle_id into $IOS_PATH"
   CI=1 ${JS_EXEC:-npx} expo prebuild --platform ios --no-install
   if [ -z "$(find "$IOS_PATH" -maxdepth 1 -name '*.xcodeproj' -print -quit 2>/dev/null)" ]; then
-    echo "'expo prebuild' produced no Xcode project in $IOS_PATH; set ios.path in builder.json if it lands elsewhere" >&2
+    echo "'expo prebuild' produced no Xcode project in $IOS_PATH; set ios.path in mobai.json if it lands elsewhere" >&2
     exit 1
   fi
 }
@@ -287,7 +287,7 @@ select_project() {
       fi
     fi
   fi
-  if [ -z "$SCHEME" ]; then echo "No app scheme found; set ios.scheme in builder.json" >&2; exit 1; fi
+  if [ -z "$SCHEME" ]; then echo "No app scheme found; set ios.scheme in mobai.json" >&2; exit 1; fi
 }
 
 cleanup_signing() {
@@ -478,7 +478,7 @@ for project, name, configs, ids in extensions:
     else:
         missing.append('%s in %s (%s)' % (name, project, ', '.join(i or '?' for i in ids)))
 if missing:
-    sys.exit('No provisioning profile for extension target %s. Add each bundle id to ios.extensions in builder.json and run builder signing setup --distribution %s.' % ('; '.join(missing), os.environ.get('DISTRIBUTION') or '<distribution>'))
+    sys.exit('No provisioning profile for extension target %s. Add each bundle id to ios.extensions in mobai.json and run builder signing setup --distribution %s.' % ('; '.join(missing), os.environ.get('DISTRIBUTION') or '<distribution>'))
 for project, name, configs, _, profile in chosen:
     for config in configs:
         build = config['buildSettings']

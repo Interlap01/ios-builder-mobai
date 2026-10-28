@@ -1,8 +1,12 @@
 package config
 
 import (
+	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -16,25 +20,24 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "valid config",
 			config: Config{
-				Project:  "MyApp",
+				Name:     "MyApp",
 				Platform: "ios",
 				GitHub:   GitHubConfig{Owner: "user", Repo: "builder-myapp"},
 			},
 			wantErr: false,
 		},
 		{
-			name: "missing project",
+			name: "no name is fine",
 			config: Config{
 				Platform: "ios",
 				GitHub:   GitHubConfig{Owner: "user", Repo: "builder-myapp"},
 			},
-			wantErr:  true,
-			errField: "project",
+			wantErr: false,
 		},
 		{
 			name: "missing github owner",
 			config: Config{
-				Project:  "MyApp",
+				Name:     "MyApp",
 				Platform: "ios",
 				GitHub:   GitHubConfig{Repo: "builder-myapp"},
 			},
@@ -44,7 +47,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "missing github repo",
 			config: Config{
-				Project:  "MyApp",
+				Name:     "MyApp",
 				Platform: "ios",
 				GitHub:   GitHubConfig{Owner: "user"},
 			},
@@ -76,13 +79,13 @@ func TestConfig_Validate(t *testing.T) {
 
 func TestManager_SaveAndLoad(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "builder.json")
+	configPath := filepath.Join(tmpDir, "mobai.json")
 
 	mgr := &Manager{path: configPath}
 
 	// Create config
 	cfg := &Config{
-		Project:  "TestApp",
+		Name:     "TestApp",
 		Platform: "ios",
 		GitHub: GitHubConfig{
 			Owner: "testuser",
@@ -107,8 +110,8 @@ func TestManager_SaveAndLoad(t *testing.T) {
 	}
 
 	// Verify fields
-	if loaded.Project != cfg.Project {
-		t.Errorf("Project = %q, want %q", loaded.Project, cfg.Project)
+	if loaded.Name != cfg.Name {
+		t.Errorf("Name = %q, want %q", loaded.Name, cfg.Name)
 	}
 	if loaded.Platform != cfg.Platform {
 		t.Errorf("Platform = %q, want %q", loaded.Platform, cfg.Platform)
@@ -130,6 +133,44 @@ func TestManager_Load_NotFound(t *testing.T) {
 	_, err := mgr.Load()
 	if err != ErrConfigNotFound {
 		t.Errorf("Load() error = %v, want ErrConfigNotFound", err)
+	}
+}
+
+// Saving into MobAI's mobai.json keeps its keys, adds no empty sections and
+// removes a section ios-builder cleared.
+func TestMergeIntoKeepsMobAIKeys(t *testing.T) {
+	existing := []byte(`{"project": "0b7c-uuid", "name": "Shelf", "build": {"ios": {"debug": "make <ios>"}}, "signing": {"dir": "~/old"}, "kmp": {}}`)
+	var cfg Config
+	if err := json.Unmarshal(existing, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	cfg.Name = ""
+	cfg.Signing = nil
+	cfg.GitHub = GitHubConfig{Owner: "o", Repo: "r"}
+	cfg.Profiles = map[string]Profile{"store": {Distribution: "store"}}
+	out, err := MergeInto(existing, &cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatal(err)
+	}
+	keys := slices.Sorted(maps.Keys(got))
+	if want := []string{"build", "github", "name", "profiles", "project"}; !slices.Equal(keys, want) {
+		t.Fatalf("keys = %v, want %v\n%s", keys, want, out)
+	}
+	if string(got["project"]) != `"0b7c-uuid"` || string(got["name"]) != `"Shelf"` || !strings.Contains(string(out), `"make <ios>"`) {
+		t.Fatalf("MobAI keys changed:\n%s", out)
+	}
+
+	// A new file gets only what is set.
+	out, err = MergeInto(nil, &Config{GitHub: GitHubConfig{Owner: "o", Repo: "r"}})
+	if err != nil || string(out) != "{\n  \"github\": {\n    \"owner\": \"o\",\n    \"repo\": \"r\"\n  }\n}\n" {
+		t.Fatalf("new file: %q, %v", out, err)
+	}
+	if _, err := MergeInto([]byte(`[1]`), &cfg); err == nil {
+		t.Fatal("non-object mobai.json accepted")
 	}
 }
 

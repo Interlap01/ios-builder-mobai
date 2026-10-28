@@ -121,7 +121,7 @@ func TestRemoteSnapshotLifecycle(t *testing.T) {
 				t.Fatal(err)
 			}
 			p := &fakeProvider{startErr: tt.startErr, cancelErr: tt.cancelErr, failPolling: tt.failPolling, payload: buf.Bytes(), statuses: []ci.Status{{Done: true, Success: true, State: "finished", Artifacts: []ci.Artifact{{Name: "app.ipa"}}}}}
-			cfg := &config.Config{Project: "App", GitHub: config.GitHubConfig{Owner: "owner", Repo: "repo"}, Codemagic: config.CIConfig{AppID: "app", Branch: "main"}}
+			cfg := &config.Config{Name: "App", GitHub: config.GitHubConfig{Owner: "owner", Repo: "repo"}, Codemagic: config.CIConfig{AppID: "app", Branch: "main"}}
 			c := NewCoordinatorWithProvider(cfg, p, io.Discard)
 			if tt.name == "artifact failure after completion" {
 				c.provider = &failedArtifactProvider{p}

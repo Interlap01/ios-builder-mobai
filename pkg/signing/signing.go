@@ -58,14 +58,14 @@ func Auto(ctx context.Context, client *asc.Client, opts *AutoOptions) (*AutoResu
 }
 
 // Setup provisions a signing set, uploads it to the repository in cfg and
-// records the profile in builder.json: `builder signing setup` without its
+// records the profile in mobai.json: `builder signing setup` without its
 // prompts and summary.
 func Setup(ctx context.Context, client *asc.Client, store SecretStore, storeErr error, cfg *config.Config, opts *SetupOptions) (*SetupResult, error) {
 	return signing.Setup(ctx, client, store, storeErr, cfg, opts)
 }
 
 // SetupManual uploads a signing set the caller already has (a .p12 and the
-// profiles) and records the profile in builder.json: `builder signing setup
+// profiles) and records the profile in mobai.json: `builder signing setup
 // --certificate --profile` without its prompts.
 func SetupManual(ctx context.Context, store SecretStore, storeErr error, cfg *config.Config, opts *ManualOptions) (*ManualResult, error) {
 	return signing.SetupManual(ctx, store, storeErr, cfg, opts)

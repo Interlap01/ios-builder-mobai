@@ -224,7 +224,7 @@ func (f *fake) called(key string) bool {
 // writes, selected as the default so tests need no --profile.
 func releaseConfig() *config.Config {
 	return &config.Config{
-		Project: "App", IOS: config.IOSConfig{BundleID: bundleID},
+		Name: "App", IOS: config.IOSConfig{BundleID: bundleID},
 		DefaultProfile: "store", Profiles: map[string]config.Profile{"store": {Distribution: "store"}},
 	}
 }
@@ -443,7 +443,7 @@ func TestPreflightPicksTheOnlyStoreProfile(t *testing.T) {
 	// The selected profile reaches the build, not the empty one Run was given.
 	f := newFake(t)
 	b := &fakeBuilder{t: t}
-	cfg := &config.Config{Project: "App", IOS: config.IOSConfig{BundleID: bundleID}, Profiles: map[string]config.Profile{"beta": store, "dev": dev}}
+	cfg := &config.Config{Name: "App", IOS: config.IOSConfig{BundleID: bundleID}, Profiles: map[string]config.Profile{"beta": store, "dev": dev}}
 	var log bytes.Buffer
 	if _, err := Run(context.Background(), cfg, b, f.client(t), &Options{
 		Build: build.BuildOptions{OutputDir: filepath.Join(t.TempDir(), "dist")}, PollInterval: time.Millisecond, Log: &log,

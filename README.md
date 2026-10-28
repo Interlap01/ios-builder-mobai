@@ -94,7 +94,7 @@ git tag ios-build/my-build && git push origin ios-build/my-build   # IPA build
 git tag ios-share/my-build && git push origin ios-share/my-build   # simulator
 ```
 
-The run is named after the tag. Build settings come from `builder.json` in the
+The run is named after the tag. Build settings come from `mobai.json` in the
 tagged commit (`ios.path`, `ios.scheme`, `ios.signing`, `ios.configuration`,
 `flutter.version`, `kmp.jdkVersion`), the simulator stays available for the
 default 30 minutes, and the tag is deleted when the run ends. The IPA is
@@ -161,7 +161,7 @@ in `app.config.js` / `app.config.ts`. Without one, prebuild would stop and ask
 for it; instead the build fails immediately and names the missing setting.
 
 The default `Debug` configuration builds an IPA that loads its JavaScript from
-Metro, so set `"ios": { "configuration": "Release" }` in `builder.json` for a
+Metro, so set `"ios": { "configuration": "Release" }` in `mobai.json` for a
 standalone IPA with the bundle baked in.
 
 An `ios/` directory left over from running `expo prebuild` locally is not
@@ -213,7 +213,7 @@ builder update                # Update builder to the latest release
 builder ios build             # Trigger build and download IPA to ./dist/
 builder ios build --unsigned  # Build without code signing (if signing is configured)
 builder ios build --provider codemagic  # Build on another provider (also: bitrise)
-builder ios build --profile production  # Build with a profile from builder.json
+builder ios build --profile production  # Build with a profile from mobai.json
 
 # Simulator (free, needs a MOBAI_API_KEY secret)
 builder ios share             # Try the build on a simulator in the MobAI app
@@ -278,11 +278,15 @@ machine-readable output and never prompts, so agents and CI jobs can drive them.
 
 ## Configuration
 
-`builder.json`:
+`mobai.json`, the file MobAI keeps in the project (its own keys, such as
+`project` and `build`, are left as they are; ios-builder never writes
+`project`). `name` names the certificate and the IPA files, else the GitHub
+repository name. Workflows read the nearest `mobai.json` at or above the iOS
+project path, up to the repository root:
 
 ```json
 {
-  "project": "MyApp",
+  "name": "MyApp",
   "platform": "ios",
   "github": {
     "owner": "username",
@@ -369,7 +373,7 @@ How a build's settings are resolved:
   top-level `provider` (or `--provider`).
 
 **`env` values are build-time configuration, not secrets.** They are stored in
-`builder.json`, sent to the CI provider as plain workflow inputs, and visible in
+`mobai.json`, sent to the CI provider as plain workflow inputs, and visible in
 the run's inputs and logs. Keep tokens and passwords in the provider's secrets
 (`gh secret set` on GitHub, or the [Codemagic / Bitrise secrets
 guide](docs/provider-secrets.md)); the build reads those as environment
@@ -489,7 +493,7 @@ existing profile). The key needs the **Admin** role (or App Manager plus
 create certificates. It then:
 
 1. Registers the **App ID** if the bundle identifier is not on the account yet.
-   The bundle ID comes from `--bundle-id`, `ios.bundleId` in `builder.json`
+   The bundle ID comes from `--bundle-id`, `ios.bundleId` in `mobai.json`
    (which `init` fills when the Xcode project has a single app target), or the
    newest IPA in `./dist/`; in a terminal it asks as a last resort.
 2. Issues a **certificate** — Apple Development for `development`, Apple
@@ -516,7 +520,7 @@ create certificates. It then:
    `ios-signing-<distribution>.p12` and `Builder-<distribution>-<bundle
    id>.mobileprovision` to `--out-dir` (default `.`), uploads the set's
    secrets to GitHub, and writes `"distribution": "<distribution>"` into the
-   `--name` profile (default: the distribution name) in `builder.json`, keeping
+   `--name` profile (default: the distribution name) in `mobai.json`, keeping
    its other fields and reporting a replaced distribution; `defaultProfile` is
    left alone. An `--out-dir` other than `.` is recorded as `signing.dir`, so a
    later `ios build` that provisions a set reuses the key there instead of
@@ -528,17 +532,17 @@ create certificates. It then:
    check those providers' secrets before a build, so `ios build` only reminds
    you of this command when the profile signs there.
 
-The upload goes to the repository in `builder.json`, always. When it fails (no
+The upload goes to the repository in `mobai.json`, always. When it fails (no
 GitHub login, or a token that cannot write secrets) the error is printed and
 the command carries on: files and values are written and shown anyway, but
-the build profile is not, since `builder.json` must not claim a set the
+the build profile is not, since `mobai.json` must not claim a set the
 repository does not have. It exits non-zero at the end so a script notices. `--json`
 reports the same in `github_upload` (`ok` or the error).
 
 **Extensions.** Every extension target (a widget, a share or notification
 extension, a watch app, an app clip) is signed with a profile of its own.
 `init` and `signing setup` read their bundle IDs from the Xcode project into
-`ios.extensions` in `builder.json`; a managed Expo project has no project to
+`ios.extensions` in `mobai.json`; a managed Expo project has no project to
 read, so list them there by hand. Automatic `setup` then registers each App ID
 and creates `Builder <distribution> <bundle id>` for it, with the same
 certificate and devices as the app; in manual mode pass one `--extension-profile
@@ -760,7 +764,7 @@ processing, then TestFlight (default) or `--app-store`, with the same flags as
 `submit`. It needs a [build profile](#build-profiles) with
 `"distribution": "store"` built as `Release` (the default for `store`; an
 explicit `Debug` is refused): `--profile`, else `defaultProfile`, else the only
-store profile in `builder.json` (logged; with several, pick one with
+store profile in `mobai.json` (logged; with several, pick one with
 `--profile`). API key and profile are checked before anything is dispatched —
 without a store profile the error names `builder signing setup --distribution
 store`, which writes one — and on GitHub a missing `STORE` signing set is
@@ -777,7 +781,7 @@ says which. Builder then reads the IPA and refuses to upload one whose
 `CFBundleVersion` is not the requested number.
 
 To find the app before the first IPA exists, set `ios.bundleId` in
-`builder.json` or pass `--bundle-id`; afterwards the newest IPA in `./dist/`
+`mobai.json` or pass `--bundle-id`; afterwards the newest IPA in `./dist/`
 is enough. The workflow file must have the `build_number` input, so repos set
 up before this feature need `builder init` once more and a push to the default
 branch. `--timeout` bounds the build and then the App Store Connect wait
@@ -790,7 +794,7 @@ build ID, version, build number and groups.
 without the website: apps, builds, groups, testers and team members. Every
 command takes `--json` (result on stdout, progress on stderr), never prompts,
 and finds the app through `--bundle-id`, then `ios.bundleId` in
-`builder.json`, then the newest IPA in `./dist/`.
+`mobai.json`, then the newest IPA in `./dist/`.
 
 ```bash
 builder asc builds                       # newest version's builds and their groups
@@ -871,7 +875,7 @@ what a crashed session left behind. `--json` prints one object per link with
 the manifest and IPA URLs, the expiry and the profile's device count; `--no-qr`
 drops the code, `--qr` prints it off a terminal and `--qr-invert` renders it for
 a dark-on-light one. Codemagic and Bitrise builds work the same way, since the
-uploads always go to the GitHub repository in `builder.json`.
+uploads always go to the GitHub repository in `mobai.json`.
 
 Alternatively, [MobAI](https://mobai.run) installs an IPA over the cable, signed
 or not: an unsigned IPA can be re-signed on install with a free Apple ID (MobAI
@@ -910,7 +914,7 @@ By default, `builder dev flutter` watches for Dart file changes and automaticall
 
 - **Automatic hot reload**: Edit a `.dart` file and save - hot reload triggers automatically
 - **Generated files ignored**: Files like `.g.dart` and `.freezed.dart` are ignored by default
-- **Configurable**: Customize watched directories, patterns, and debounce via `builder.json`
+- **Configurable**: Customize watched directories, patterns, and debounce via `mobai.json`
 
 To disable file watching:
 ```bash
@@ -1048,7 +1052,7 @@ app that is already installed.
 ### Troubleshooting
 
 **Build fails with "Unsupported class file major version" or a Gradle JDK error**
-- The project needs a different JDK than the default: set `kmp.jdkVersion` in `builder.json` to match what the project uses locally
+- The project needs a different JDK than the default: set `kmp.jdkVersion` in `mobai.json` to match what the project uses locally
 
 **Build fails with "SDK does not contain 'libarclite'"**
 - An old Kotlin/Native version against a newer Xcode; upgrade the Kotlin plugin in Gradle

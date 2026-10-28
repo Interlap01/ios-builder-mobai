@@ -1,4 +1,4 @@
-// Package config exposes builder.json handling to code outside this module.
+// Package config exposes mobai.json handling to code outside this module.
 //
 // The implementation lives in internal/config, which Go forbids other modules
 // from importing. This package re-exports it so ios-builder can be consumed as
@@ -11,7 +11,7 @@ import "github.com/MobAI-App/ios-builder/internal/config"
 // ConfigFileName is the default configuration file name.
 const ConfigFileName = config.ConfigFileName
 
-// ErrConfigNotFound indicates builder.json was not found.
+// ErrConfigNotFound indicates mobai.json was not found.
 var ErrConfigNotFound = config.ErrConfigNotFound
 
 type (
@@ -40,10 +40,17 @@ const (
 	DistributionEnterprise  = config.DistributionEnterprise
 )
 
-// NewManager creates a configuration manager rooted at builder.json.
+// NewManager creates a configuration manager for ./mobai.json.
 func NewManager() *Manager {
 	return config.NewManager()
 }
+
+// MergeInto writes cfg into existing mobai.json content and returns the new
+// file. cfg is all of ios-builder's part, so start from the file's content:
+// its keys are set from cfg and removed when cfg leaves them empty (no empty
+// sections), every key ios-builder does not know is kept, and an empty Name
+// keeps the file's "name".
+func MergeInto(existing []byte, cfg *Config) ([]byte, error) { return config.MergeInto(existing, cfg) }
 
 // ParseDistribution canonicalizes a distribution name (internal is ad-hoc).
 func ParseDistribution(s string) (string, error) { return config.ParseDistribution(s) }

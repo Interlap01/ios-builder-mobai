@@ -205,7 +205,7 @@ func TestMatchExtensionProfiles(t *testing.T) {
 // secret, and a run without that flag says which extension lacks a profile.
 func TestSigningSetupManualUploadsExtensionProfiles(t *testing.T) {
 	t.Chdir(t.TempDir())
-	cfg := &config.Config{Project: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"}}
+	cfg := &config.Config{Name: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"}}
 	if err := config.NewManager().Save(cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -329,18 +329,18 @@ func TestSigningKeyPrefersTheTypeThenLegacy(t *testing.T) {
 	}
 }
 
-// TestWriteSigningProfile checks what signing setup leaves in builder.json:
+// TestWriteSigningProfile checks what signing setup leaves in mobai.json:
 // a profile holding the distribution, other fields kept, ios.signing untouched.
 func TestWriteSigningProfile(t *testing.T) {
 	t.Chdir(t.TempDir())
-	cfg := &config.Config{Project: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"},
+	cfg := &config.Config{Name: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"},
 		Profiles: map[string]config.Profile{"beta": {Scheme: "AppBeta", Env: map[string]string{"API_URL": "x"}}}}
 	writeSigningProfile(cfg, "store", signing.TypeStore)
 	writeSigningProfile(cfg, "beta", signing.TypeAdHoc)
 	if err := config.NewManager().Save(cfg); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := os.ReadFile("builder.json")
+	raw, err := os.ReadFile("mobai.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,7 +371,7 @@ func TestWriteSigningProfile(t *testing.T) {
 	if replaced := writeSigningProfile(cfg, "beta", signing.TypeStore); replaced != "internal" || cfg.Profiles["beta"].Distribution != "store" || cfg.Profiles["beta"].Scheme != "AppBeta" {
 		t.Fatalf("different distribution: %q %+v", replaced, cfg.Profiles["beta"])
 	}
-	if line := profileWritten("beta", signing.TypeStore, "internal"); line != `  Updated: builder.json (profile "beta", distribution store, was internal)` {
+	if line := profileWritten("beta", signing.TypeStore, "internal"); line != `  Updated: mobai.json (profile "beta", distribution store, was internal)` {
 		t.Fatalf("line: %s", line)
 	}
 	if line := profileWritten("beta", signing.TypeStore, ""); strings.Contains(line, "was") {
@@ -380,7 +380,7 @@ func TestWriteSigningProfile(t *testing.T) {
 }
 
 func signedConfig() *config.Config {
-	return &config.Config{Project: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"},
+	return &config.Config{Name: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"},
 		IOS: config.IOSConfig{BundleID: "com.example.app"},
 		Profiles: map[string]config.Profile{
 			"store":       {Distribution: "store"},
@@ -516,7 +516,7 @@ func TestEnsureSigningSecretsProvisionsOnDemand(t *testing.T) {
 		t.Fatalf("second build: %v, calls %v, uploads %v", err, portal.Calls(), store.names)
 	}
 
-	// An extension target found in the project is written to builder.json,
+	// An extension target found in the project is written to mobai.json,
 	// gets its own profile, and the whole set is uploaded again with it.
 	writeProject(t, "App.xcodeproj", appWithWidgetPbxproj)
 	if err := config.NewManager().Save(cfg); err != nil {
@@ -530,7 +530,7 @@ func TestEnsureSigningSecretsProvisionsOnDemand(t *testing.T) {
 		t.Errorf("extensions %v, calls %v", cfg.IOS.Extensions, portal.Calls())
 	}
 	if saved, err := config.NewManager().Load(); err != nil || !slices.Equal(saved.IOS.Extensions, cfg.IOS.Extensions) {
-		t.Errorf("builder.json extensions = %v, %v", saved.IOS.Extensions, err)
+		t.Errorf("mobai.json extensions = %v, %v", saved.IOS.Extensions, err)
 	}
 	if got, err := signing.DecodeExtensionProfiles(store.stored["IOS_EXTENSION_PROFILES_STORE"]); err != nil || string(got["com.example.app.widget"]) != "profile:prof-3" {
 		t.Errorf("extension profiles secret: %q, %v", store.stored["IOS_EXTENSION_PROFILES_STORE"], err)
@@ -597,7 +597,7 @@ func writeSigningKey(t *testing.T, portal *signingtest.Portal, path, certType st
 
 // TestEnsureSigningSecretsReusesTheKeyInTheRecordedDir: the key of a
 // `signing setup --out-dir ~/signing/app` run is found through signing.dir in
-// builder.json, so the certificate is reused instead of requested again (and
+// mobai.json, so the certificate is reused instead of requested again (and
 // refused by Apple, which allows one per type).
 func TestEnsureSigningSecretsReusesTheKeyInTheRecordedDir(t *testing.T) {
 	t.Chdir(t.TempDir())
@@ -645,7 +645,7 @@ func TestEnsureSigningSecretsReusesTheKeyInTheRecordedDir(t *testing.T) {
 	}
 }
 
-// TestSigningSetupRecordsTheOutDir: --out-dir goes into builder.json as
+// TestSigningSetupRecordsTheOutDir: --out-dir goes into mobai.json as
 // given, tilde included, so the next build finds the key; the default
 // working directory is not written.
 func TestSigningSetupRecordsTheOutDir(t *testing.T) {
@@ -653,7 +653,7 @@ func TestSigningSetupRecordsTheOutDir(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	cfg := &config.Config{Project: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"},
+	cfg := &config.Config{Name: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"},
 		IOS: config.IOSConfig{BundleID: "com.example.app"}}
 	if err := config.NewManager().Save(cfg); err != nil {
 		t.Fatal(err)
@@ -706,11 +706,11 @@ func signingSetupCommand(t *testing.T, store secretStore, args ...string) (cmd *
 
 // TestSigningSetupManualReportsAFailedUpload: a repository Builder cannot
 // write to is a message, not a dead end. The values are printed, the build
-// profile is not written (builder.json must not claim a set the repository
+// profile is not written (mobai.json must not claim a set the repository
 // does not have), and the exit code says it failed.
 func TestSigningSetupManualReportsAFailedUpload(t *testing.T) {
 	t.Chdir(t.TempDir())
-	cfg := &config.Config{Project: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"}}
+	cfg := &config.Config{Name: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"}}
 	if err := config.NewManager().Save(cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -746,7 +746,7 @@ func TestSigningSetupManualReportsAFailedUpload(t *testing.T) {
 	if _, ok := saved.Profiles["store"]; ok {
 		t.Errorf("build profile written although its secrets were not uploaded: %+v", saved.Profiles)
 	}
-	if !strings.Contains(stdout.String(), "Not updated: builder.json") {
+	if !strings.Contains(stdout.String(), "Not updated: mobai.json") {
 		t.Errorf("the skipped profile is not reported:\n%s", stdout.String())
 	}
 }
@@ -755,7 +755,7 @@ func TestSigningSetupManualReportsAFailedUpload(t *testing.T) {
 // Connect mode: everything Apple issued is kept and printed.
 func TestSigningSetupAutoReportsAFailedUpload(t *testing.T) {
 	t.Chdir(t.TempDir())
-	cfg := &config.Config{Project: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"},
+	cfg := &config.Config{Name: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"},
 		IOS: config.IOSConfig{BundleID: "com.example.app"}}
 	if err := config.NewManager().Save(cfg); err != nil {
 		t.Fatal(err)
@@ -792,7 +792,7 @@ func TestSigningSetupAutoReportsAFailedUpload(t *testing.T) {
 	if _, ok := saved.Profiles["store"]; ok {
 		t.Errorf("build profile written although its secrets were not uploaded: %+v", saved.Profiles)
 	}
-	if !strings.Contains(stdout.String(), "Not updated: builder.json") {
+	if !strings.Contains(stdout.String(), "Not updated: mobai.json") {
 		t.Errorf("the skipped profile is not reported:\n%s", stdout.String())
 	}
 

@@ -11,7 +11,7 @@ import (
 // before anything is pushed, and cannot be combined with --submit or --unsigned.
 func TestBuildDistributePreflight(t *testing.T) {
 	t.Chdir(t.TempDir())
-	cfg := &config.Config{Project: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"}, Profiles: map[string]config.Profile{
+	cfg := &config.Config{Name: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"}, Profiles: map[string]config.Profile{
 		"store": {Distribution: "store"},
 		"plain": {},
 	}}
@@ -37,7 +37,7 @@ func TestBuildDistributePreflight(t *testing.T) {
 
 func TestDistributeNeedsAnIPA(t *testing.T) {
 	t.Chdir(t.TempDir())
-	cfg := &config.Config{Project: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"}}
+	cfg := &config.Config{Name: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"}}
 	if err := config.NewManager().Save(cfg); err != nil {
 		t.Fatal(err)
 	}

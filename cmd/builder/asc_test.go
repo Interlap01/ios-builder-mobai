@@ -431,7 +431,7 @@ func TestASCAmbiguousGroupIsRefused(t *testing.T) {
 func TestASCResolvesAppOrExplains(t *testing.T) {
 	newASCFake(t)
 	_, _, err := run(t, "asc", "groups")
-	if err == nil || !strings.Contains(err.Error(), "--bundle-id") || !strings.Contains(err.Error(), "builder.json") {
+	if err == nil || !strings.Contains(err.Error(), "--bundle-id") || !strings.Contains(err.Error(), "mobai.json") {
 		t.Errorf("err = %v", err)
 	}
 }

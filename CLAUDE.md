@@ -25,14 +25,14 @@ go install ./cmd/builder
 ./builder auth github       # Authenticate with GitHub (OAuth device flow)
 ./builder init              # Set up workflow in current repo
 ./builder ios build         # Trigger build and download IPA to ./dist/
-./builder ios build --profile production  # Build with a builder.json profile
+./builder ios build --profile production  # Build with a mobai.json profile
 ./builder dev flutter       # Flutter hot reload with MobAI
 ./builder dev rn            # React Native hot reload with MobAI
 ./builder dev kmp           # Kotlin Multiplatform install + launch (no hot reload)
 ./builder dev flutter --skip-install --bundle-id <id>  # Use already installed app
 ./builder dev rn --skip-install --bundle-id <id>       # Use already installed app
 ./builder auth apple        # Save an App Store Connect API key
-./builder signing setup --devices-from-mobai   # development: certificate + devices + profile via the ASC API, secrets to GitHub, profile in builder.json
+./builder signing setup --devices-from-mobai   # development: certificate + devices + profile via the ASC API, secrets to GitHub, profile in mobai.json
 ./builder signing setup --distribution store --yes --json  # Distribution certificate + App Store profile, no prompts
 ./builder ios build --profile store            # Signs with the STORE set; provisions it first when the secrets are missing
 ./builder ios upload --wait # Upload dist/*.ipa to App Store Connect, wait for processing
@@ -62,7 +62,7 @@ builder init ────────────► Detects git remote (origin)
                                 │
                                 ▼
                           Creates .github/workflows/ios-build.yml
-                          Creates builder.json
+                          Creates mobai.json
                           Optionally commits/pushes and runs build
 
 builder ios build ───────► Snapshots working tree (git commit-tree)
@@ -219,7 +219,7 @@ internal/
   signing/           # CSR generation, .p12 assembly, and Auto (portal-free provisioning on top of asc)
   snapshot/          # Working-tree snapshot as a throwaway commit on a remote ref
   workflow/          # Workflow template (embedded)
-  config/            # builder.json management
+  config/            # mobai.json management
   dev/               # Development session (Flutter/React Native hot reload)
   mobai/             # MobAI API client (device control, app install/launch)
 ```
@@ -260,7 +260,7 @@ internal/
   distribution before any keychain exists. Shared functions are verbatim in both templates; tests diff them
 - **Signing Setup**: writes only its distribution's set and `profiles.<name>.distribution` (other fields
   and an equal spelling kept), never `ios.signing` or `defaultProfile`. Upload always targets the `github`
-  repo in builder.json; a failure is printed, values still shown, exit non-zero (`github_upload` in `--json`)
+  repo in mobai.json; a failure is printed, values still shown, exit non-zero (`github_upload` in `--json`)
 - **On-Demand Provisioning**: `ensureSigningSecrets` (GitHub only, before any push) lists secret names
   (403/404 = missing scope/admin, never "no secrets") and provisions a missing set via `signing.Auto` with
   no prompts, key from `signing.dir` then `.`; a certificate 409 with no local key names the dirs searched
@@ -396,7 +396,7 @@ internal/
   `Builder <d> <id>` profile per entry, uploaded as `IOS_EXTENSION_PROFILES_<SET>` (JSON of id → base64).
 - **Extension Secrets**: always written, `{}` for none; required by `missingSigningSecrets` only when
   the list is non-empty. Manual mode: one `--extension-profile` each, matched by the profile's app id.
-  Secrets are unreadable, so a build re-provisions when the project has extensions not in builder.json
+  Secrets are unreadable, so a build re-provisions when the project has extensions not in mobai.json
 - **Extension Signing On The Runner**: `install_extension_profiles` hands `EXTENSION_PROFILES` (id →
   name) to `apply_signing_to_app_target`, which signs each extension-type target (`xcodeproj.ExtensionProductTypes`)
   with the longest covering entry or fails naming the ids to add; `write_export_options` exports them
@@ -436,10 +436,12 @@ internal/
 
 ## Configuration
 
-`builder.json`:
+`mobai.json` (MobAI's file; `project` there is MobAI's Testing project id and is never written
+here, other unknown keys are kept on save and empty sections are never written; `name` names the
+certificate and IPAs, else `github.repo`):
 ```json
 {
-  "project": "MyApp",
+  "name": "MyApp",
   "platform": "ios",
   "github": { "owner": "username", "repo": "my-ios-app" },
   "ios": { "path": "ios", "scheme": "", "bundleId": "com.example.app" },
@@ -475,8 +477,8 @@ The embedded workflow template (`internal/workflow/templates/ios-build.yml`):
 - Also triggered by pushing a tag `ios-build/<build-id>` (`ios-share/<build-id>` for the share
   workflow) for environments without GitHub API access. Push events run the workflow file from
   the tagged commit, `inputs` are empty, so a `Resolve parameters` step reads `ios_path`, `scheme`,
-  `use_signing`, `configuration`, `flutter_version` and `jdk_version` from `builder.json` in the
-  tagged tree, applying `defaultProfile` (a tag cannot pick a profile per run; `build_number` is
+  `use_signing`, `configuration`, `flutter_version` and `jdk_version` from the nearest `mobai.json`
+  at or above `ios_path` (up to the repository root) in the tagged tree, applying `defaultProfile` (a tag cannot pick a profile per run; `build_number` is
   always empty there); every later step reads `steps.params.outputs.*`, never `inputs.*`. The same
   step exports the profile's `env` to `$GITHUB_ENV` and outputs `profile`, `distribution` and
   `signing_set`. The job deletes

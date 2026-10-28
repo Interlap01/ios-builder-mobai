@@ -19,7 +19,7 @@ func providerInitCommand(name string) *cobra.Command {
 
 func TestAddingProvidersPreservesSettingsAndDefault(t *testing.T) {
 	chdir(t)
-	cfg := &config.Config{Project: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "owner", Repo: "repo"}, IOS: config.IOSConfig{Signing: true, Configuration: "Release"}, Flutter: config.FlutterConfig{Version: "3.24.0"}}
+	cfg := &config.Config{Name: "App", Platform: "ios", GitHub: config.GitHubConfig{Owner: "owner", Repo: "repo"}, IOS: config.IOSConfig{Signing: true, Configuration: "Release"}, Flutter: config.FlutterConfig{Version: "3.24.0"}}
 	mgr := config.NewManager()
 	if err := mgr.Save(cfg); err != nil {
 		t.Fatal(err)
@@ -57,7 +57,7 @@ func TestReinitializingCustomProviderPreservesWorkflowsAndFiles(t *testing.T) {
 	for _, name := range []string{"codemagic", "bitrise"} {
 		t.Run(name, func(t *testing.T) {
 			chdir(t)
-			cfg := &config.Config{Project: "App", GitHub: config.GitHubConfig{Owner: "owner", Repo: "repo"}, Codemagic: config.CIConfig{AppID: "codemagic-app", Branch: "old", BuildWorkflow: "custom-build", ShareWorkflow: "custom-share"}, Bitrise: config.CIConfig{AppID: "bitrise-app", Branch: "old", BuildWorkflow: "custom-build", ShareWorkflow: "custom-share"}}
+			cfg := &config.Config{Name: "App", GitHub: config.GitHubConfig{Owner: "owner", Repo: "repo"}, Codemagic: config.CIConfig{AppID: "codemagic-app", Branch: "old", BuildWorkflow: "custom-build", ShareWorkflow: "custom-share"}, Bitrise: config.CIConfig{AppID: "bitrise-app", Branch: "old", BuildWorkflow: "custom-build", ShareWorkflow: "custom-share"}}
 			mgr := config.NewManager()
 			if err := mgr.Save(cfg); err != nil {
 				t.Fatal(err)

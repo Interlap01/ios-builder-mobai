@@ -14,7 +14,7 @@ import (
 
 func profiledConfig() *config.Config {
 	return &config.Config{
-		Project: "App",
+		Name:    "App",
 		GitHub:  config.GitHubConfig{Owner: "owner", Repo: "repo"},
 		IOS:     config.IOSConfig{Path: "ios", Scheme: "App", Configuration: "Debug"},
 		Flutter: config.FlutterConfig{Version: "3.24.0"},

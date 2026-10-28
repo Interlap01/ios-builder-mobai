@@ -22,7 +22,7 @@ var ascCmd = &cobra.Command{
 	Long: `Lists and manages what App Store Connect knows about the app, from any
 platform. Every command is non-interactive and takes --json.
 
-The app is identified by --bundle-id, else ios.bundleId in builder.json, else
+The app is identified by --bundle-id, else ios.bundleId in mobai.json, else
 the newest IPA in ./dist. Needs an App Store Connect API key: builder auth apple.`,
 }
 
@@ -164,7 +164,7 @@ func init() {
 	ascUsersInviteCmd.Flags().String("last", "", "Last name (required)")
 	ascUsersInviteCmd.Flags().Bool("all-apps", false, "Make every app visible, not only this one")
 	for _, cmd := range []*cobra.Command{ascBuildsCmd, ascBuildsExpireCmd, ascGroupsCmd, ascGroupsCreateCmd, ascGroupsDeleteCmd, ascGroupsAddBuildCmd, ascTestersCmd, ascTestersAddCmd, ascTestersRemoveCmd, ascTestersInviteCmd, ascUsersInviteCmd} {
-		cmd.Flags().String("bundle-id", "", "App bundle ID (default: ios.bundleId in builder.json, else the newest IPA in ./dist)")
+		cmd.Flags().String("bundle-id", "", "App bundle ID (default: ios.bundleId in mobai.json, else the newest IPA in ./dist)")
 		cmd.Flags().Bool("json", false, "Print the result as JSON (progress goes to stderr)")
 	}
 	ascBuildsCmd.AddCommand(ascBuildsExpireCmd)
@@ -175,7 +175,7 @@ func init() {
 }
 
 // resolveApp picks the app a command works on: --bundle-id, else --ipa when
-// the command has that flag, else ios.bundleId in builder.json, else the
+// the command has that flag, else ios.bundleId in mobai.json, else the
 // newest IPA in ./dist. version is the marketing version when an IPA was read.
 func resolveApp(cmd *cobra.Command) (bundleID, version string, err error) {
 	if id, _ := cmd.Flags().GetString("bundle-id"); id != "" {
@@ -191,7 +191,7 @@ func resolveApp(cmd *cobra.Command) (bundleID, version string, err error) {
 			return cfg.IOS.BundleID, "", nil
 		}
 		if path, err = ipa.Newest("dist"); err != nil {
-			return "", "", fmt.Errorf("cannot tell which app: pass --bundle-id, set ios.bundleId in builder.json, or build an IPA into ./dist")
+			return "", "", fmt.Errorf("cannot tell which app: pass --bundle-id, set ios.bundleId in mobai.json, or build an IPA into ./dist")
 		}
 	}
 	info, err := ipa.ReadInfo(path)

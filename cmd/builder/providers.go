@@ -58,7 +58,7 @@ func runProviderInit(cmd *cobra.Command) error {
 			iosPath, _ = detectIOSPath()
 		}
 		scheme, _ := cmd.Flags().GetString("scheme")
-		cfg = &config.Config{Provider: "github", Project: project, Platform: "ios", GitHub: config.GitHubConfig{Owner: owner, Repo: repo}, IOS: config.IOSConfig{Path: iosPath, Scheme: scheme}}
+		cfg = &config.Config{Provider: "github", Name: project, Platform: "ios", GitHub: config.GitHubConfig{Owner: owner, Repo: repo}, IOS: config.IOSConfig{Path: iosPath, Scheme: scheme}}
 	}
 	if err := cfg.Validate(); err != nil {
 		return err

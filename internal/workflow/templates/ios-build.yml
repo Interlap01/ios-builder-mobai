@@ -5,7 +5,7 @@ on:
   # Pushing a tag named ios-build/<build-id> starts the same job without the
   # GitHub API, for environments where only git access is available. A push
   # event runs the workflow file from the tagged commit, and the parameters
-  # come from builder.json there. The tag is deleted when the job ends.
+  # come from mobai.json there. The tag is deleted when the job ends.
   push:
     tags:
       - 'ios-build/*'
@@ -53,7 +53,7 @@ on:
       # One input for the profile fields that are not inputs of their own, so
       # the workflow stays under the ten-input limit of workflow_dispatch.
       profile:
-        description: 'Selected builder.json profile as JSON: {"name": "...", "env": {...}, "distribution": "..."}'
+        description: 'Selected mobai.json profile as JSON: {"name": "...", "env": {...}, "distribution": "..."}'
         required: false
         type: string
         default: '{}'
@@ -88,7 +88,7 @@ jobs:
           echo "Building $(git rev-parse --short HEAD)"
 
       # Dispatch inputs arrive with their declared defaults; a tag push has none,
-      # so the values come from builder.json in the tagged commit (defaultProfile
+      # so the values come from mobai.json in the tagged commit (defaultProfile
       # included) and the build id is the tag name after the prefix.
       - name: Resolve parameters
         id: params
@@ -104,11 +104,19 @@ jobs:
           IN_BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
           set -e
+          # The configuration: the nearest mobai.json at or above the project
+          # path, up to the repository root.
+          TOP=$(pwd -P)
+          DIR=$(cd "${IN_IOS_PATH:-.}" 2>/dev/null && pwd -P || echo "$TOP")
+          while [ ! -f "$DIR/mobai.json" ] && [ "$DIR" != "$TOP" ] && [ "$DIR" != / ]; do DIR=$(dirname "$DIR"); done
+          CONFIG="$DIR/mobai.json"
+          echo "config=$CONFIG" >> "$GITHUB_OUTPUT"
+          echo "config=$CONFIG"
           PROFILE=""
-          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ] && [ -f builder.json ]; then
-            PROFILE=$(jq -r '.defaultProfile // empty' builder.json)
-            if [ -n "$PROFILE" ] && [ "$(jq -r --arg p "$PROFILE" '.profiles[$p] != null' builder.json)" != "true" ]; then
-              echo "::error::defaultProfile \"$PROFILE\" is not defined under profiles in builder.json"
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ] && [ -f "$CONFIG" ]; then
+            PROFILE=$(jq -r '.defaultProfile // empty' "$CONFIG")
+            if [ -n "$PROFILE" ] && [ "$(jq -r --arg p "$PROFILE" '.profiles[$p] != null' "$CONFIG")" != "true" ]; then
+              echo "::error::defaultProfile \"$PROFILE\" is not defined under profiles in mobai.json"
               exit 1
             fi
           fi
@@ -116,8 +124,8 @@ jobs:
             local v=""
             if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
               v="$2"
-            elif [ -f builder.json ]; then
-              v=$(jq -r --arg p "$PROFILE" "$3 // empty" builder.json)
+            elif [ -f "$CONFIG" ]; then
+              v=$(jq -r --arg p "$PROFILE" "$3 // empty" "$CONFIG")
             fi
             v="${v:-$4}"
             echo "$1=$v" >> "$GITHUB_OUTPUT"
@@ -134,20 +142,20 @@ jobs:
           param configuration    "$IN_CONFIGURATION" '(.profiles[$p].configuration // (if $p != "" and (.profiles[$p].distribution // "") != "" then (if .profiles[$p].distribution == "development" then "Debug" else "Release" end) else .ios.configuration end))' 'Debug'
           param flutter_version  "$IN_FLUTTER_VERSION" '.flutter.version' ''
           param jdk_version      "$IN_JDK_VERSION" '.kmp.jdkVersion' '17'
-          # A build number only comes from `builder ios release`, never builder.json.
+          # A build number only comes from `builder ios release`, never the file.
           param build_number     "$IN_BUILD_NUMBER" '""' ''
 
           # The rest of the profile: name, distribution (selects the signing
           # set) and env, exported from here on so dependency installs see it.
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             PROFILE_JSON="$IN_PROFILE"
-          elif [ -f builder.json ]; then
-            PROFILE_JSON=$(jq -c --arg p "$PROFILE" '{name: $p, env: (.profiles[$p].env // {}), distribution: (.profiles[$p].distribution // "")}' builder.json)
+          elif [ -f "$CONFIG" ]; then
+            PROFILE_JSON=$(jq -c --arg p "$PROFILE" '{name: $p, env: (.profiles[$p].env // {}), distribution: (.profiles[$p].distribution // "")}' "$CONFIG")
           fi
           [ -n "${PROFILE_JSON:-}" ] || PROFILE_JSON='{}'
           PROFILE=$(jq -r '.name // ""' <<< "$PROFILE_JSON")
           DISTRIBUTION=$(jq -r '.distribution // ""' <<< "$PROFILE_JSON")
-          # The CLI sends the canonical name; a tag build reads whatever builder.json says.
+          # The CLI sends the canonical name; a tag build reads whatever the file says.
           case "$DISTRIBUTION" in internal) DISTRIBUTION=ad-hoc ;; esac
           # The suffix of the IOS_* secrets a distribution is signed with; no
           # distribution means the legacy unsuffixed secrets. Same table in runner.sh.
@@ -612,7 +620,7 @@ jobs:
 
           ${JS_EXEC:-npx} expo prebuild --platform ios --no-install
           if [ -z "$(find "$IOS_PATH" -maxdepth 1 -name '*.xcodeproj' -print -quit 2>/dev/null)" ]; then
-            echo "::error::'expo prebuild' produced no Xcode project in '$IOS_PATH'. If the project generates it elsewhere, set ios.path in builder.json."
+            echo "::error::'expo prebuild' produced no Xcode project in '$IOS_PATH'. If the project generates it elsewhere, set ios.path in mobai.json."
             exit 1
           fi
 
@@ -926,7 +934,7 @@ jobs:
               else:
                   missing.append('%s in %s (%s)' % (name, project, ', '.join(i or '?' for i in ids)))
           if missing:
-              sys.exit('No provisioning profile for extension target %s. Add each bundle id to ios.extensions in builder.json and run builder signing setup --distribution %s.' % ('; '.join(missing), os.environ.get('DISTRIBUTION') or '<distribution>'))
+              sys.exit('No provisioning profile for extension target %s. Add each bundle id to ios.extensions in mobai.json and run builder signing setup --distribution %s.' % ('; '.join(missing), os.environ.get('DISTRIBUTION') or '<distribution>'))
           for project, name, configs, _, profile in chosen:
               for config in configs:
                   build = config['buildSettings']
@@ -1004,6 +1012,62 @@ jobs:
               plistlib.dump(options, out)
           PY
           }
+
+          # A signed build of a repository whose mobai.json (the nearest one at
+          # or above the iOS project) has an iOS release command builds with
+          # that command, the one MobAI builds with on a Mac, instead of the
+          # steps below. Signing reaches it through the environment: the
+          # profile goes on the app and extension targets as below,
+          # XCODE_XCCONFIG_FILE carries the style, team, identity and build
+          # number, and MOBAI_EXPORT_OPTIONS names the export options.
+          RELEASE_CMD=""
+          if [ "$USE_SIGNING" = "true" ]; then
+            TOP=$(cd "$GITHUB_WORKSPACE" && pwd -P)
+            DIR=$(cd "$GITHUB_WORKSPACE/$IOS_PATH" 2>/dev/null && pwd -P || echo "$TOP")
+            while [ ! -f "$DIR/mobai.json" ] && [ "$DIR" != "$TOP" ] && [ "$DIR" != / ]; do DIR=$(dirname "$DIR"); done
+            RELEASE_CMD=$(jq -r '.build.ios.release.command // empty' "$DIR/mobai.json" 2>/dev/null || true)
+          fi
+          if [ -n "$RELEASE_CMD" ]; then
+            case "$PROFILE_BUNDLE_ID" in
+              *'*'*) fail "The provisioning profile covers $PROFILE_BUNDLE_ID, a wildcard; the release command in $DIR/mobai.json exports with the app's own id. Use a profile for the app's bundle id." ;;
+            esac
+            # Expo's prebuild step above has made the project by now; one the
+            # command makes itself gets no profile, so say so.
+            if compgen -G "$GITHUB_WORKSPACE/$IOS_PATH/*.xcodeproj" > /dev/null; then
+              (cd "$GITHUB_WORKSPACE/$IOS_PATH" && apply_signing_to_app_target "$PROFILE_BUNDLE_ID")
+            else
+              echo "::warning::No .xcodeproj in $IOS_PATH before the release command runs, so no target carries the provisioning profile"
+            fi
+            apply_build_number
+            XCODE_XCCONFIG_FILE="$RUNNER_TEMP/mobai-signing.xcconfig"
+            {
+              echo "CODE_SIGN_STYLE = Manual"
+              echo "DEVELOPMENT_TEAM = $DEVELOPMENT_TEAM"
+              echo "CODE_SIGN_IDENTITY = $CODE_SIGN_IDENTITY"
+              if [ -n "$build_number" ]; then
+                echo "CURRENT_PROJECT_VERSION = $build_number"
+                echo "FLUTTER_BUILD_NUMBER = $build_number"
+              fi
+              if [ -n "$build_name" ]; then
+                echo "MARKETING_VERSION = $build_name"
+                echo "FLUTTER_BUILD_NAME = $build_name"
+              fi
+            } > "$XCODE_XCCONFIG_FILE"
+            MOBAI_EXPORT_OPTIONS="$RUNNER_TEMP/ExportOptions.plist"
+            APP_BUNDLE_ID="$PROFILE_BUNDLE_ID" write_export_options "$MOBAI_EXPORT_OPTIONS"
+            export XCODE_XCCONFIG_FILE MOBAI_EXPORT_OPTIONS
+            echo "Building with the release command in $DIR/mobai.json: $RELEASE_CMD"
+            (cd "$DIR" && bash -c "$RELEASE_CMD")
+            WANT=$(jq -r '.build.ios.release.app // empty' "$DIR/mobai.json")
+            IPA=$(cd "$DIR" && [ -n "$WANT" ] && ls -td $WANT 2>/dev/null | head -1 || true)
+            [ -n "$IPA" ] || fail "The release build in $DIR/mobai.json made nothing at its \"app\" path (${WANT:-not set})"
+            case "$IPA" in /*) ;; *) IPA="$DIR/$IPA" ;; esac
+            case "$IPA" in *.ipa) ;; *) fail "The release build in $DIR/mobai.json names $IPA, not an .ipa" ;; esac
+            mkdir -p "$GITHUB_WORKSPACE/build"
+            mv "$IPA" "$GITHUB_WORKSPACE/build/$BUILD_ID.ipa"
+            echo "Created signed IPA: build/$BUILD_ID.ipa"
+            exit 0
+          fi
 
           # Navigate to iOS project
           cd "$IOS_PATH"

@@ -127,7 +127,7 @@ func TestProfileJSONRoundTrip(t *testing.T) {
 	if p.Distribution != "ad-hoc" || p.Configuration != "Release" || cfg.DefaultProfile != "preview" {
 		t.Fatalf("parsed %+v", cfg)
 	}
-	out, err := json.Marshal(&Config{Project: "App"})
+	out, err := json.Marshal(&Config{Name: "App"})
 	if err != nil || strings.Contains(string(out), "profiles") || strings.Contains(string(out), "defaultProfile") {
 		t.Fatalf("empty profiles should be omitted: %s %v", out, err)
 	}

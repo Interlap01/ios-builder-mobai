@@ -65,10 +65,10 @@ func storeProfile(appID string) []byte {
 }
 
 // SetupManual uploads the four secrets of the profile's set, writes the
-// build profile and hands builder.json to SaveConfig instead of the disk.
+// build profile and hands mobai.json to SaveConfig instead of the disk.
 func TestSetupManualUploadsAndSavesThroughCallback(t *testing.T) {
 	store := newFakeSecrets(t)
-	cfg := &config.Config{Project: "App", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"}, IOS: config.IOSConfig{Extensions: []string{"com.example.app.widget"}}}
+	cfg := &config.Config{Name: "App", GitHub: config.GitHubConfig{Owner: "o", Repo: "r"}, IOS: config.IOSConfig{Extensions: []string{"com.example.app.widget"}}}
 	var saved *config.Config
 	widget := storeProfile("com.example.app.widget")
 	res, err := SetupManual(context.Background(), store, nil, cfg, &ManualOptions{
@@ -96,12 +96,12 @@ func TestSetupManualUploadsAndSavesThroughCallback(t *testing.T) {
 		t.Errorf("saved %v, profiles %v", saved, cfg.Profiles)
 	}
 	if _, err := os.Stat(config.ConfigFileName); err == nil {
-		t.Error("builder.json written to the working directory despite SaveConfig")
+		t.Error("mobai.json written to the working directory despite SaveConfig")
 	}
 }
 
 // A failed upload is reported in the result, not as an error, and the profile
-// stays out of builder.json: it must not claim a set the repository lacks.
+// stays out of mobai.json: it must not claim a set the repository lacks.
 // The config is still saved, as the CLI does.
 func TestSetupManualReportsUploadFailure(t *testing.T) {
 	store := newFakeSecrets(t)
@@ -152,17 +152,17 @@ func TestSetupManualSaveFailure(t *testing.T) {
 	}
 }
 
-// Without SaveConfig, builder.json lands in the working directory: the CLI's
+// Without SaveConfig, mobai.json lands in the working directory: the CLI's
 // behavior, unchanged.
 func TestSaveConfigDefaultsToWorkingDirectory(t *testing.T) {
 	t.Chdir(t.TempDir())
-	cfg := &config.Config{Project: "App"}
+	cfg := &config.Config{Name: "App"}
 	if err := saveConfig(nil, cfg); err != nil {
 		t.Fatal(err)
 	}
 	loaded, err := config.NewManager().Load()
-	if err != nil || loaded.Project != "App" {
-		t.Fatalf("builder.json: %+v, %v", loaded, err)
+	if err != nil || loaded.Name != "App" {
+		t.Fatalf("mobai.json: %+v, %v", loaded, err)
 	}
 }
 

@@ -28,9 +28,9 @@ Store Connect, waits for processing and hands the build on:
 The build number is one above the highest CFBundleVersion App Store Connect
 holds for the app, so every release uploads; --build-number overrides it and
 --version sets the marketing version. The app is identified by --bundle-id,
-ios.bundleId in builder.json, or the newest IPA in the output directory.
+ios.bundleId in mobai.json, or the newest IPA in the output directory.
 
-Needs an App Store Connect API key (builder auth apple) and a builder.json
+Needs an App Store Connect API key (builder auth apple) and a mobai.json
 profile with "distribution": "store" (--profile, or defaultProfile, or the
 only App Store profile there is), built in Release; builder signing setup
 --distribution store writes the "store" profile.
@@ -49,12 +49,12 @@ func init() {
 	f.String("release", "", "App Store release: manual or after-approval")
 	f.String("version", "", "Marketing version to build and submit (default: the project's)")
 	f.String("build-number", "", "CFBundleVersion to build (default: one above the highest in App Store Connect)")
-	f.String("bundle-id", "", "App bundle ID (default: ios.bundleId in builder.json, then the newest IPA in the output directory)")
+	f.String("bundle-id", "", "App bundle ID (default: ios.bundleId in mobai.json, then the newest IPA in the output directory)")
 	f.Bool("no-encryption", false, "Declare the app uses no non-exempt encryption (export compliance)")
 	f.StringP("output", "o", "dist", "Output directory for the IPA")
 	f.StringP("remote", "r", "origin", "Git remote to push the working-tree snapshot to")
-	f.String("provider", "", "Override CI provider (default github or builder.json provider)")
-	f.String("profile", "", "App Store build profile from builder.json, distribution store (default: defaultProfile)")
+	f.String("provider", "", "Override CI provider (default github or mobai.json provider)")
+	f.String("profile", "", "App Store build profile from mobai.json, distribution store (default: defaultProfile)")
 	f.Duration("timeout", 30*time.Minute, "Time limit for the build, and again for App Store Connect processing")
 	f.Bool("json", false, "Print the result as JSON (progress goes to stderr)")
 	iosCmd.AddCommand(iosReleaseCmd)

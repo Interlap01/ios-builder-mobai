@@ -20,7 +20,7 @@ type (
 )
 
 // Preflight returns the profile to release with: the selected one when it
-// has distribution store, else the only store profile in builder.json.
+// has distribution store, else the only store profile in mobai.json.
 func Preflight(cfg *config.Config, profile string, log io.Writer) (string, error) {
 	return release.Preflight(cfg, profile, log)
 }

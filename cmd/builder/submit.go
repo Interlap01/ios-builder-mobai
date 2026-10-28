@@ -26,7 +26,7 @@ var iosSubmitCmd = &cobra.Command{
                  must already be complete in App Store Connect.
 
 The app is identified by --bundle-id, else --ipa, else ios.bundleId in
-builder.json, else the newest IPA in ./dist. The newest VALID build is used
+mobai.json, else the newest IPA in ./dist. The newest VALID build is used
 unless --build-number is given.`,
 	Args: cobra.NoArgs,
 	RunE: runIOSSubmit,

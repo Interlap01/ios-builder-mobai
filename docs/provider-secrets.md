@@ -21,7 +21,7 @@ another service.
 
 A repository holds one signing set per distribution (`development`, `ad-hoc`
 — also spelled `internal` — `store`, `enterprise`), and a build profile's
-`distribution` in `builder.json` chooses which set a build uses; a profile
+`distribution` in `mobai.json` chooses which set a build uses; a profile
 without one builds unsigned. Each set is a certificate, its password and a
 matching profile, and the runner refuses a set whose profile is of another
 type. Start with the development set, which is what on-device testing needs:
@@ -52,7 +52,7 @@ builder signing setup --devices-from-mobai --out-dir ~/signing
 
 This creates the certificate, devices and profile through the API, writes
 `ios-signing-development.p12` and the `.mobileprovision` to `~/signing`, tries to
-upload the set to the GitHub repository in `builder.json` (a failure is printed
+upload the set to the GitHub repository in `mobai.json` (a failure is printed
 and the run continues, ending with a non-zero exit code), prints the secret
 names and file paths to paste below either way, and writes the `development`
 build profile. Run it again with `--distribution
@@ -75,7 +75,7 @@ Keep private keys, P12 files, and encoded copies out of Git and build snapshots.
 
 The signing secrets come in sets, one per distribution, named with a suffix:
 `DEVELOPMENT`, `AD_HOC` (for `ad-hoc` and `internal`), `STORE` or
-`ENTERPRISE`. A build reads the set named by its `builder.json` profile's
+`ENTERPRISE`. A build reads the set named by its `mobai.json` profile's
 `distribution`. The runner checks that the profile in the set is that type and
 fails by name when it is not. Use these exact, case-sensitive names, shown
 here for the development set:
@@ -169,7 +169,7 @@ See [Bitrise's Secrets instructions](https://docs.bitrise.io/en/bitrise-ci/confi
 
 ## 6. Verify a signed build
 
-In your existing `builder.json`, make sure a profile names the distribution of
+In your existing `mobai.json`, make sure a profile names the distribution of
 the set you added (`signing setup` writes one; by hand it is
 `"profiles": {"development": {"distribution": "development"}}`), preserving
 the other project and provider settings. Then run from the app checkout,

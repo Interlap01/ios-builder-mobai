@@ -5,10 +5,13 @@ import (
 	"strings"
 )
 
-// Config represents the builder.json configuration file
+// Config is ios-builder's part of mobai.json. Keys it does not know (MobAI's
+// "project", "build", ...) are ignored on load and kept on save; "project"
+// there is MobAI's Testing project id, so ios-builder never writes it.
 type Config struct {
-	Project     string            `json:"project"`
-	Platform    string            `json:"platform"`
+	// Name is the project's human name (mobai.json's "name").
+	Name        string            `json:"name,omitempty"`
+	Platform    string            `json:"platform,omitempty"`
 	GitHub      GitHubConfig      `json:"github"`
 	Provider    string            `json:"provider,omitempty"`
 	Codemagic   CIConfig          `json:"codemagic,omitempty"`
@@ -163,11 +166,17 @@ type GitHubConfig struct {
 	Repo  string `json:"repo"`
 }
 
+// DisplayName is the project's name for people and file names: Name when
+// set, else the GitHub repository's name.
+func (c *Config) DisplayName() string {
+	if c.Name != "" {
+		return c.Name
+	}
+	return c.GitHub.Repo
+}
+
 // Validate checks if the configuration is valid
 func (c *Config) Validate() error {
-	if c.Project == "" {
-		return &ValidationError{Field: "project", Message: "project name is required"}
-	}
 	if c.GitHub.Owner == "" {
 		return &ValidationError{Field: "github.owner", Message: "GitHub owner is required"}
 	}

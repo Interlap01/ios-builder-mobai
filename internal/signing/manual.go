@@ -3,7 +3,7 @@ package signing
 // The manual half of `signing setup`: a certificate and profiles the user
 // already has, taken as they are. The CLI reads the files and prompts; a
 // program embedding Builder hands the bytes over. Both come through here for
-// the type check, the extension matching, the upload and builder.json.
+// the type check, the extension matching, the upload and mobai.json.
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 type ManualOptions struct {
 	// Type is the distribution, as ManualType read it from the profile.
 	Type Type
-	// ProfileName is the builder.json profile written with the distribution;
+	// ProfileName is the mobai.json profile written with the distribution;
 	// empty means the distribution's own name.
 	ProfileName string
 	// P12 is the certificate with its private key; Password opens it.
@@ -32,13 +32,13 @@ type ManualOptions struct {
 	ExtensionProfiles map[string][]byte
 	// Log receives progress lines; nil discards them.
 	Log io.Writer
-	// SaveConfig persists cfg; nil writes builder.json in the working directory.
+	// SaveConfig persists cfg; nil writes mobai.json in the working directory.
 	SaveConfig func(*config.Config) error
 }
 
 // ManualResult is what SetupManual reports. As with Setup, a failed upload is
 // not an error: it is recorded here for the caller to report, and the
-// profile is then left out of builder.json.
+// profile is then left out of mobai.json.
 type ManualResult struct {
 	// SigningSet is the suffix of the secrets written (DEVELOPMENT, AD_HOC,
 	// STORE, ENTERPRISE).
@@ -46,9 +46,9 @@ type ManualResult struct {
 	SecretsUploaded bool   `json:"secrets_uploaded"`
 	// GitHubUpload is "ok" or why the upload failed.
 	GitHubUpload string `json:"github_upload"`
-	// BuildProfile is the builder.json profile that builds with the set.
+	// BuildProfile is the mobai.json profile that builds with the set.
 	BuildProfile string `json:"build_profile"`
-	// ProfileWritten says BuildProfile was written to builder.json, which
+	// ProfileWritten says BuildProfile was written to mobai.json, which
 	// happens only when the secrets were uploaded.
 	ProfileWritten bool `json:"profile_written"`
 	// ReplacedDistribution is the distribution the profile had before, when
@@ -59,7 +59,7 @@ type ManualResult struct {
 }
 
 // SetupManual uploads a signing set the user supplied and records the
-// profile in builder.json: `builder signing setup --certificate --profile`
+// profile in mobai.json: `builder signing setup --certificate --profile`
 // after its prompts. storeErr is a secret store that could not be built (no
 // GitHub login), reported like a failed upload.
 func SetupManual(ctx context.Context, store SecretStore, storeErr error, cfg *config.Config, opts *ManualOptions) (*ManualResult, error) {
@@ -80,7 +80,7 @@ func SetupManual(ctx context.Context, store SecretStore, storeErr error, cfg *co
 	}
 
 	// The profile is written only when its secrets reached the repository:
-	// builder.json must not claim a signing set the repository does not have.
+	// mobai.json must not claim a signing set the repository does not have.
 	if res.SecretsUploaded {
 		res.ReplacedDistribution = WriteProfile(cfg, profileName, opts.Type)
 		res.ProfileWritten = true
@@ -157,7 +157,7 @@ func MatchExtensionProfiles(extensions []string, files map[string][]byte, typ Ty
 		}
 	}
 	if len(problems) > 0 {
-		return nil, fmt.Errorf("extension profiles do not match ios.extensions in builder.json:\n  %s", strings.Join(problems, "\n  "))
+		return nil, fmt.Errorf("extension profiles do not match ios.extensions in mobai.json:\n  %s", strings.Join(problems, "\n  "))
 	}
 	return profiles, nil
 }

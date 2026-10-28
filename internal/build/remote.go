@@ -189,7 +189,7 @@ func (c *Coordinator) buildRemote(ctx context.Context, opts *BuildOptions, s *co
 	}
 	c.progress.Complete(PhaseBuilding, "Build completed")
 	c.progress.Update(PhaseDownloading, "Downloading IPA...")
-	path, size, err := saveRemoteIPA(ctx, p, run, artifact, opts.OutputDir, c.config.Project, buildID)
+	path, size, err := saveRemoteIPA(ctx, p, run, artifact, opts.OutputDir, c.config.DisplayName(), buildID)
 	if err != nil {
 		return nil, err
 	}

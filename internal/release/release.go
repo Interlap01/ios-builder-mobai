@@ -29,7 +29,7 @@ type Options struct {
 	// BuildNumber, Unsigned and the Profile Preflight settles on itself.
 	Build build.BuildOptions
 	// BundleID identifies the app before the IPA exists; empty means
-	// ios.bundleId in builder.json, then the newest IPA in the output directory.
+	// ios.bundleId in mobai.json, then the newest IPA in the output directory.
 	BundleID string
 	// BuildNumber overrides the automatic next number; Version sets the
 	// marketing version on the build (and is the App Store version to submit).
@@ -68,7 +68,7 @@ var versionRe = regexp.MustCompile(`^[0-9]+(\.[0-9]+){0,2}$`)
 
 // Preflight returns the profile to release with: the selected one (--profile,
 // else defaultProfile) when it has distribution store and builds Release, else
-// the only store profile in builder.json, which `signing setup --distribution
+// the only store profile in mobai.json, which `signing setup --distribution
 // store` writes without touching defaultProfile. Anything else is an error,
 // since TestFlight accepts nothing but App Store archives.
 func Preflight(cfg *config.Config, profile string, log io.Writer) (string, error) {
@@ -82,7 +82,7 @@ func Preflight(cfg *config.Config, profile string, log io.Writer) (string, error
 		case profile != "" || len(store) == 0:
 			return "", notStoreProfileErr(&s)
 		case len(store) > 1:
-			return "", fmt.Errorf("%w. builder.json has more than one App Store profile: %s — pass --profile with the one to release", notStoreProfileErr(&s), strings.Join(store, ", "))
+			return "", fmt.Errorf("%w. mobai.json has more than one App Store profile: %s; pass --profile with the one to release", notStoreProfileErr(&s), strings.Join(store, ", "))
 		}
 		profile = store[0]
 		if s, err = cfg.ResolveProfile(profile); err != nil {
@@ -100,9 +100,9 @@ func Preflight(cfg *config.Config, profile string, log io.Writer) (string, error
 // how to get a profile that can.
 func notStoreProfileErr(s *config.BuildSettings) error {
 	if s.Distribution == "" {
-		return fmt.Errorf("no App Store build profile selected; TestFlight and the App Store need one with \"distribution\": \"store\". Run builder signing setup --distribution store, which writes the \"store\" profile to builder.json, then release with --profile store")
+		return fmt.Errorf("no App Store build profile selected; TestFlight and the App Store need one with \"distribution\": \"store\". Run builder signing setup --distribution store, which writes the \"store\" profile to mobai.json, then release with --profile store")
 	}
-	return fmt.Errorf("profile %q has distribution %s; TestFlight and the App Store need an App Store profile (\"distribution\": \"store\"). Run builder signing setup --distribution store, which writes the \"store\" profile to builder.json, then release with --profile store", s.Profile, s.Distribution)
+	return fmt.Errorf("profile %q has distribution %s; TestFlight and the App Store need an App Store profile (\"distribution\": \"store\"). Run builder signing setup --distribution store, which writes the \"store\" profile to mobai.json, then release with --profile store", s.Profile, s.Distribution)
 }
 
 // storeProfiles lists the profiles with distribution store, sorted; ones that
@@ -223,7 +223,7 @@ func buildNumberInput(buildNumber, version string) string {
 	return version + "+" + buildNumber
 }
 
-// resolveBundleID picks the flag, then builder.json, then the newest IPA.
+// resolveBundleID picks the flag, then mobai.json, then the newest IPA.
 func resolveBundleID(flag, configured, outputDir string) (string, error) {
 	if flag != "" {
 		return flag, nil
@@ -233,11 +233,11 @@ func resolveBundleID(flag, configured, outputDir string) (string, error) {
 	}
 	path, err := ipa.Newest(outputDir)
 	if err != nil {
-		return "", fmt.Errorf("cannot tell which app to release: pass --bundle-id or set ios.bundleId in builder.json (%v)", err)
+		return "", fmt.Errorf("cannot tell which app to release: pass --bundle-id or set ios.bundleId in mobai.json (%v)", err)
 	}
 	info, err := ipa.ReadInfo(path)
 	if err != nil {
-		return "", fmt.Errorf("cannot tell which app to release: pass --bundle-id or set ios.bundleId in builder.json (%v)", err)
+		return "", fmt.Errorf("cannot tell which app to release: pass --bundle-id or set ios.bundleId in mobai.json (%v)", err)
 	}
 	return info.BundleID, nil
 }

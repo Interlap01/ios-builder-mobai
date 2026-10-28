@@ -32,7 +32,7 @@ vendor/
 Thumbs.db
 
 # Project config (user-specific)
-builder.json
+/mobai.json
 
 # Local development
 .env

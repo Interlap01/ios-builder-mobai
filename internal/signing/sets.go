@@ -59,7 +59,7 @@ func (c Commands) orBuilder() Commands {
 // SetupOptions drives Setup, the automatic half of `signing setup`.
 type SetupOptions struct {
 	Type Type
-	// ProfileName is the builder.json profile written with the distribution;
+	// ProfileName is the mobai.json profile written with the distribution;
 	// empty means the distribution's own name.
 	ProfileName string
 	BundleID    string
@@ -69,20 +69,20 @@ type SetupOptions struct {
 	Password string
 	Force    bool
 	// OutDir receives the key, .p12 and profiles; OutDirAsGiven is the same
-	// path as the user typed it (a ~ stays a ~) and is what builder.json
+	// path as the user typed it (a ~ stays a ~) and is what mobai.json
 	// records. Empty OutDir means the working directory.
 	OutDir        string
 	OutDirAsGiven string
 	// Log receives progress lines; nil discards them.
 	Log io.Writer
 	// SaveConfig persists cfg with the profile written; nil writes
-	// builder.json in the working directory, as the CLI does. A program with
-	// no checkout (one that commits builder.json through the GitHub API, say)
+	// mobai.json in the working directory, as the CLI does. A program with
+	// no checkout (one that commits mobai.json through the GitHub API, say)
 	// supplies its own.
 	SaveConfig func(*config.Config) error
 }
 
-// saveConfig is SaveConfig, or builder.json in the working directory.
+// saveConfig is SaveConfig, or mobai.json in the working directory.
 func saveConfig(save func(*config.Config) error, cfg *config.Config) error {
 	if save == nil {
 		save = config.NewManager().Save
@@ -104,9 +104,9 @@ type SetupResult struct {
 	SecretsUploaded bool   `json:"secrets_uploaded"`
 	// GitHubUpload is "ok" or why the upload failed.
 	GitHubUpload string `json:"github_upload"`
-	// BuildProfile is the builder.json profile that builds with the set.
+	// BuildProfile is the mobai.json profile that builds with the set.
 	BuildProfile string `json:"build_profile"`
-	// ProfileWritten says BuildProfile was written to builder.json, which
+	// ProfileWritten says BuildProfile was written to mobai.json, which
 	// happens only when the secrets were uploaded.
 	ProfileWritten bool `json:"profile_written"`
 	// ReplacedDistribution is the distribution the profile had before, when
@@ -117,7 +117,7 @@ type SetupResult struct {
 }
 
 // Setup provisions a signing set through App Store Connect, uploads it to
-// the repository in cfg and records the profile in builder.json: everything
+// the repository in cfg and records the profile in mobai.json: everything
 // `builder signing setup` does after its confirmation prompt. storeErr is a
 // secret store that could not be built (no GitHub login); it is reported
 // like a failed upload once the material exists. A partial result comes back
@@ -140,7 +140,7 @@ func Setup(ctx context.Context, client *asc.Client, store SecretStore, storeErr 
 	}
 	res := &SetupResult{SigningSet: set, BuildProfile: profileName}
 	res.AutoResult, err = Auto(ctx, client, &AutoOptions{
-		BundleID: opts.BundleID, Extensions: cfg.IOS.Extensions, Type: opts.Type, Devices: opts.Devices, KeyPEM: opts.KeyPEM, CommonName: cfg.Project,
+		BundleID: opts.BundleID, Extensions: cfg.IOS.Extensions, Type: opts.Type, Devices: opts.Devices, KeyPEM: opts.KeyPEM, CommonName: cfg.DisplayName(),
 		Password: opts.Password, Force: opts.Force, OutDir: outDir, Log: opts.Log,
 	})
 	if err != nil {
@@ -155,9 +155,9 @@ func Setup(ctx context.Context, client *asc.Client, store SecretStore, storeErr 
 	}
 
 	// The profile is written only when its secrets reached the repository: a
-	// profile in builder.json says the set is ready to build with, and one
+	// profile in mobai.json says the set is ready to build with, and one
 	// whose secrets are missing fails the build late and misleads anyone, an
-	// agent that cannot list secrets included, who reads builder.json.
+	// agent that cannot list secrets included, who reads mobai.json.
 	if res.SecretsUploaded {
 		res.ReplacedDistribution = WriteProfile(cfg, profileName, opts.Type)
 		res.ProfileWritten = true
@@ -173,7 +173,7 @@ func Setup(ctx context.Context, client *asc.Client, store SecretStore, storeErr 
 }
 
 // UploadSet writes the secrets of a set to the GitHub repository in
-// builder.json. storeErr is a client that could not be built (no login),
+// mobai.json. storeErr is a client that could not be built (no login),
 // reported like a failed upload since the values are printed afterwards.
 func UploadSet(ctx context.Context, store SecretStore, storeErr error, cfg *config.Config, log io.Writer, set string, p12 []byte, password string, profile []byte, extensions map[string][]byte) error {
 	if storeErr != nil {
@@ -235,7 +235,7 @@ func MissingSecrets(ctx context.Context, gh SecretStore, cfg *config.Config, set
 
 // EnsureOptions drives EnsureSecrets.
 type EnsureOptions struct {
-	// Profile is the builder.json profile about to be built; empty means
+	// Profile is the mobai.json profile about to be built; empty means
 	// defaultProfile. Provider overrides the profile's CI provider.
 	Profile  string
 	Provider string
@@ -275,7 +275,7 @@ func EnsureSecrets(ctx context.Context, cfg *config.Config, store SecretStore, a
 	}
 	typ, set := Type(s.Distribution), s.SigningSet()
 	// A secret's contents cannot be read back, so an extension target that
-	// appeared since builder.json last listed it is provisioned like a
+	// appeared since mobai.json last listed it is provisioned like a
 	// missing secret.
 	newExtensions := SyncExtensions(cfg, log)
 	missing, err := MissingSecrets(ctx, store, cfg, set)
@@ -300,7 +300,7 @@ func EnsureSecrets(ctx context.Context, cfg *config.Config, store SecretStore, a
 	}
 	bundleID := ConfiguredBundleID(cfg, log)
 	if bundleID == "" {
-		return fmt.Errorf("bundle ID unknown: set ios.bundleId in builder.json, or run %s --distribution %s --bundle-id <id>", cmds.Setup, typ)
+		return fmt.Errorf("bundle ID unknown: set ios.bundleId in mobai.json, or run %s --distribution %s --bundle-id <id>", cmds.Setup, typ)
 	}
 	dirs := KeyDirs(cfg)
 	keyPEM, keyPath, err := ReadKey("", typ, dirs...)
@@ -313,7 +313,7 @@ func EnsureSecrets(ctx context.Context, cfg *config.Config, store SecretStore, a
 	}
 	logf(log, "Provisioning %s signing for %s through App Store Connect...", typ, bundleID)
 	res, err := Auto(ctx, client, &AutoOptions{
-		BundleID: bundleID, Extensions: cfg.IOS.Extensions, Type: typ, KeyPEM: keyPEM, CommonName: cfg.Project, Password: password, OutDir: dirs[0], Log: log,
+		BundleID: bundleID, Extensions: cfg.IOS.Extensions, Type: typ, KeyPEM: keyPEM, CommonName: cfg.DisplayName(), Password: password, OutDir: dirs[0], Log: log,
 	})
 	if err != nil {
 		if keyPath == "" && CertificateRefused(err) {
@@ -377,7 +377,7 @@ func CertificateRefused(err error) bool {
 func SyncExtensions(cfg *config.Config, log io.Writer) []string {
 	found, err := xcodeproj.ExtensionBundleIDs(cfg.IOS.Path)
 	if err != nil {
-		logf(log, "Warning: could not read the extension targets of the Xcode project: %v. List their bundle IDs in ios.extensions in builder.json.", err)
+		logf(log, "Warning: could not read the extension targets of the Xcode project: %v. List their bundle IDs in ios.extensions in mobai.json.", err)
 		return nil
 	}
 	var added []string
@@ -390,7 +390,7 @@ func SyncExtensions(cfg *config.Config, log io.Writer) []string {
 	return added
 }
 
-// WriteProfile creates or updates the builder.json profile that builds with
+// WriteProfile creates or updates the mobai.json profile that builds with
 // this distribution. Other fields of an existing profile are kept, and so is
 // its own spelling of the same distribution (internal stays internal); a
 // different distribution is replaced and returned so the caller can say so.
@@ -453,7 +453,7 @@ func FindKey(typ Type, dirs []string) string {
 	return ""
 }
 
-// RecordDir keeps `signing setup`'s --out-dir in builder.json as given (a ~
+// RecordDir keeps `signing setup`'s --out-dir in mobai.json as given (a ~
 // stays a ~, so the file works for every user of the repo), where on-demand
 // provisioning looks for the key first; "." is not written.
 func RecordDir(cfg *config.Config, outDir string) {

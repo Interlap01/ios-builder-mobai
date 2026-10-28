@@ -96,7 +96,7 @@ func runSigningAuto(cmd *cobra.Command) error {
 		fmt.Fprintf(out.log, "Extensions:   %s\n", strings.Join(cfg.IOS.Extensions, ", "))
 	}
 	fmt.Fprintf(out.log, "Distribution: %s (signing set %s)\n", typ, set)
-	fmt.Fprintf(out.log, "Profile:      %s (builder.json)\n", profileName)
+	fmt.Fprintf(out.log, "Profile:      %s (mobai.json)\n", profileName)
 	if typ.NeedsDevices() {
 		fmt.Fprintf(out.log, "Devices:      %s\n", describeDevices(devices))
 	}
@@ -164,7 +164,7 @@ func runSigningAuto(cmd *cobra.Command) error {
 }
 
 // setupDistribution is --distribution, else the distribution of the
-// builder.json profile --name points at, else development.
+// mobai.json profile --name points at, else development.
 func setupDistribution(cfg *config.Config, profileName, flag string) (signing.Type, error) {
 	if flag != "" {
 		return signing.ParseType(flag)
@@ -213,9 +213,9 @@ func signingUploadFailed(cfg *config.Config) error {
 	return fmt.Errorf("the signing set was not uploaded to %s/%s; add the secrets above by hand, or fix the access and run builder signing setup again", cfg.GitHub.Owner, cfg.GitHub.Repo)
 }
 
-// profileWritten is the "Updated: builder.json" line of both setup modes.
+// profileWritten is the "Updated: mobai.json" line of both setup modes.
 func profileWritten(name string, typ signing.Type, replaced string) string {
-	line := fmt.Sprintf("  Updated: builder.json (profile %q, distribution %s", name, typ)
+	line := fmt.Sprintf("  Updated: mobai.json (profile %q, distribution %s", name, typ)
 	if replaced != "" {
 		line += ", was " + replaced
 	}
@@ -225,10 +225,10 @@ func profileWritten(name string, typ signing.Type, replaced string) string {
 // profileNotWritten replaces that line when the upload failed: the profile
 // would claim a signing set the repository does not have.
 func profileNotWritten(name string) string {
-	return fmt.Sprintf("  Not updated: builder.json (profile %q is written once its secrets are uploaded; rerun setup with access to the repository's secrets, or add them by hand and then the profile)", name)
+	return fmt.Sprintf("  Not updated: mobai.json (profile %q is written once its secrets are uploaded; rerun setup with access to the repository's secrets, or add them by hand and then the profile)", name)
 }
 
-// resolveSigningBundleID takes the flag, then builder.json, then the newest
+// resolveSigningBundleID takes the flag, then mobai.json, then the newest
 // IPA in ./dist, then asks (only in a terminal).
 func resolveSigningBundleID(cmd *cobra.Command, cfg *config.Config, out output) (string, error) {
 	if id, _ := cmd.Flags().GetString("bundle-id"); id != "" {
@@ -238,7 +238,7 @@ func resolveSigningBundleID(cmd *cobra.Command, cfg *config.Config, out output) 
 		return id, nil
 	}
 	if !stdinIsTerminal() || out.json {
-		return "", errors.New("bundle ID unknown: pass --bundle-id, set ios.bundleId in builder.json, or build once so ./dist has an IPA to read it from")
+		return "", errors.New("bundle ID unknown: pass --bundle-id, set ios.bundleId in mobai.json, or build once so ./dist has an IPA to read it from")
 	}
 	id, err := promptString("App bundle ID (e.g. com.example.app)", "")
 	if err != nil {

@@ -50,7 +50,7 @@ func (c *Client) ListBranches(ctx context.Context, owner, repo string) ([]string
 
 // GetFile reads one file of the repository at ref (a branch, tag or commit;
 // empty means the default branch). A missing file is ErrFileNotFound, so a
-// caller can tell "no builder.json yet" from a failure.
+// caller can tell "no mobai.json yet" from a failure.
 func (c *Client) GetFile(ctx context.Context, owner, repo, path, ref string) (*FileContent, error) {
 	query := ""
 	if ref != "" {

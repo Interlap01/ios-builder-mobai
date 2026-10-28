@@ -58,7 +58,7 @@ func NewCoordinatorWithOutput(cfg *config.Config, gh *github.Client, w io.Writer
 // BuildOptions contains options for a build
 type BuildOptions struct {
 	Provider  string // Override the configured CI provider (and the profile's)
-	Profile   string // builder.json profile to build with; empty uses defaultProfile, else the top-level settings
+	Profile   string // mobai.json profile to build with; empty uses defaultProfile, else the top-level settings
 	OutputDir string
 	Timeout   time.Duration
 	Unsigned  bool   // Skip code signing even if configured
@@ -70,7 +70,7 @@ type BuildOptions struct {
 }
 
 // settings applies the selected profile, then the command flags, over
-// builder.json. The returned name is the provider that will run the job.
+// mobai.json. The returned name is the provider that will run the job.
 func (c *Coordinator) settings(profile, provider string, unsigned bool) (*config.BuildSettings, string, error) {
 	s, err := c.config.ResolveProfile(profile)
 	if err != nil {
@@ -305,7 +305,7 @@ func (c *Coordinator) downloadIPAArtifactByID(ctx context.Context, outputDir str
 	}
 
 	// Extract IPA from the artifact ZIP
-	ipaPath := filepath.Join(outputDir, fmt.Sprintf("%s-%s.ipa", c.config.Project, buildID))
+	ipaPath := filepath.Join(outputDir, fmt.Sprintf("%s-%s.ipa", c.config.DisplayName(), buildID))
 	ipaSize, err := extractIPAFromZip(artifactZip, ipaPath)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to extract IPA: %w", err)

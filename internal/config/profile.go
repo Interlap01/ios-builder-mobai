@@ -92,7 +92,7 @@ func (c *Config) ResolveProfile(name string) (BuildSettings, error) {
 	p, ok := c.Profiles[name]
 	if !ok {
 		if len(c.Profiles) == 0 {
-			return s, fmt.Errorf("%s %q is not defined; builder.json has no profiles", source, name)
+			return s, fmt.Errorf("%s %q is not defined; mobai.json has no profiles", source, name)
 		}
 		return s, fmt.Errorf("%s %q is not defined; available profiles: %s", source, name, strings.Join(c.ProfileNames(), ", "))
 	}

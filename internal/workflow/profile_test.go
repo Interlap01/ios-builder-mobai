@@ -12,7 +12,7 @@ import (
 )
 
 // resolveStep returns the shell of the "Resolve parameters" step of a workflow
-// template, which is where builder.json profiles are applied on the runner.
+// template, which is where mobai.json profiles are applied on the runner.
 func resolveStep(t *testing.T, file string) string {
 	t.Helper()
 	data, err := GetTemplate(file)
@@ -49,12 +49,12 @@ type resolved struct {
 }
 
 // runResolve executes the step the way the runner does: bash, GITHUB_OUTPUT and
-// GITHUB_ENV files, builder.json in the working directory.
-func runResolve(t *testing.T, script, builderJSON string, env map[string]string) resolved {
+// GITHUB_ENV files, mobai.json in the working directory.
+func runResolve(t *testing.T, script, mobaiJSON string, env map[string]string) resolved {
 	t.Helper()
 	dir := t.TempDir()
-	if builderJSON != "" {
-		if err := os.WriteFile(filepath.Join(dir, "builder.json"), []byte(builderJSON), 0644); err != nil {
+	if mobaiJSON != "" {
+		if err := os.WriteFile(filepath.Join(dir, "mobai.json"), []byte(mobaiJSON), 0644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -174,7 +174,7 @@ func TestResolveParametersApplyProfiles(t *testing.T) {
 		env := map[string]string{"GITHUB_EVENT_NAME": "workflow_dispatch", "IN_BUILD_ID": "12345678", "IN_SCHEME": "Dispatched",
 			"IN_USE_SIGNING": "true", "IN_CONFIGURATION": "Release",
 			"IN_PROFILE": `{"name":"production","env":{"API_URL":"https://api.example.com"},"distribution":"store"}`}
-		// builder.json on disk must be ignored for a dispatch.
+		// mobai.json on disk must be ignored for a dispatch.
 		r := runResolve(t, build, profiledBuilderJSON, env)
 		if r.err != nil {
 			t.Fatalf("%v\n%s", r.err, r.log)
@@ -211,7 +211,7 @@ func TestResolveParametersApplyProfiles(t *testing.T) {
 }
 
 // The simulator workflow builds Debug and never signs, so it takes no profile
-// at all: no `profile` input, and a tag push ignores builder.json's profiles.
+// at all: no `profile` input, and a tag push ignores mobai.json's profiles.
 func TestShareWorkflowTakesNoProfile(t *testing.T) {
 	data, err := GetTemplate("ios-share.yml")
 	if err != nil {

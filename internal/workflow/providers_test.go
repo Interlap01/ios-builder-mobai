@@ -558,6 +558,16 @@ func TestSigningSettingsOnAppTargetOnly(t *testing.T) {
 	}
 	for name, data := range map[string]string{"ios-build.yml": string(workflowTemplate), "runner.sh": string(runner)} {
 		data = strings.ReplaceAll(data, "\r\n", "\n") // Windows checkouts
+		// The mobai.json release path signs the targets once, before its
+		// own command (which may run pod install itself: CocoaPods keeps the
+		// targets' build settings), and archives inside that command; it is
+		// checked apart from the workflow's own archives.
+		if start, end := strings.Index(data, `RELEASE_CMD=""`), strings.Index(data, "# Navigate to iOS project"); start >= 0 && end > start {
+			if n := strings.Count(data[start:end], call); n != 1 {
+				t.Errorf("%s: the mobai.json release path calls apply_signing_to_app_target %d times, want 1", name, n)
+			}
+			data = data[:start] + data[end:]
+		}
 		for _, want := range wiring[name] {
 			if !strings.Contains(data, want) {
 				t.Errorf("%s: the profile's app id does not reach the build, missing %q", name, want)

@@ -78,17 +78,17 @@ func TestListBranches(t *testing.T) {
 // back the bytes and the blob SHA a later PutFile needs.
 func TestGetFileDecodesContent(t *testing.T) {
 	c := apiServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/repos/o/r/contents/dir/builder.json" || r.URL.Query().Get("ref") != "main" {
+		if r.URL.Path != "/repos/o/r/contents/dir/mobai.json" || r.URL.Query().Get("ref") != "main" {
 			t.Errorf("unexpected request %s", r.URL)
 		}
 		content := base64.StdEncoding.EncodeToString([]byte(`{"project": "App"}`))
-		fmt.Fprintf(w, `{"path":"dir/builder.json","sha":"blob1","encoding":"base64","content":"%s\n%s\n"}`, content[:10], content[10:])
+		fmt.Fprintf(w, `{"path":"dir/mobai.json","sha":"blob1","encoding":"base64","content":"%s\n%s\n"}`, content[:10], content[10:])
 	})
-	file, err := c.GetFile(context.Background(), "o", "r", "dir/builder.json", "main")
+	file, err := c.GetFile(context.Background(), "o", "r", "dir/mobai.json", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(file.Content) != `{"project": "App"}` || file.SHA != "blob1" || file.Path != "dir/builder.json" {
+	if string(file.Content) != `{"project": "App"}` || file.SHA != "blob1" || file.Path != "dir/mobai.json" {
 		t.Errorf("file = %+v (%q)", file, file.Content)
 	}
 }
@@ -98,7 +98,7 @@ func TestGetFileNotFound(t *testing.T) {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprint(w, `{"message":"Not Found","status":"404"}`)
 	})
-	_, err := c.GetFile(context.Background(), "o", "r", "builder.json", "")
+	_, err := c.GetFile(context.Background(), "o", "r", "mobai.json", "")
 	if !errors.Is(err, ErrFileNotFound) {
 		t.Fatalf("missing file: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestGetFileNotFound(t *testing.T) {
 		w.WriteHeader(http.StatusForbidden)
 		fmt.Fprint(w, `{"message":"forbidden"}`)
 	})
-	if _, err := c.GetFile(context.Background(), "o", "r", "builder.json", ""); err == nil || errors.Is(err, ErrFileNotFound) {
+	if _, err := c.GetFile(context.Background(), "o", "r", "mobai.json", ""); err == nil || errors.Is(err, ErrFileNotFound) {
 		t.Fatalf("403: %v", err)
 	}
 }
@@ -115,7 +115,7 @@ func TestGetFileNotFound(t *testing.T) {
 func TestPutFileCommits(t *testing.T) {
 	var body map[string]string
 	c := apiServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut || r.URL.Path != "/repos/o/r/contents/builder.json" {
+		if r.Method != http.MethodPut || r.URL.Path != "/repos/o/r/contents/mobai.json" {
 			t.Errorf("unexpected request %s %s", r.Method, r.URL)
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -124,7 +124,7 @@ func TestPutFileCommits(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, `{"content":{"sha":"blob2"},"commit":{"sha":"abc123","html_url":"https://github.com/o/r/commit/abc123"}}`)
 	})
-	commit, err := c.PutFile(context.Background(), "o", "r", "builder.json", &PutFileRequest{
+	commit, err := c.PutFile(context.Background(), "o", "r", "mobai.json", &PutFileRequest{
 		Message: "signing profile", Content: []byte("{}"), Branch: "main", SHA: "blob1",
 	})
 	if err != nil {
@@ -147,7 +147,7 @@ func TestPutFileCommits(t *testing.T) {
 // A new file carries no sha, and a path with spaces is escaped per segment.
 func TestPutFileNewFileEscapesPath(t *testing.T) {
 	c := apiServer(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.EscapedPath() != "/repos/o/r/contents/ios%20app/builder.json" {
+		if r.URL.EscapedPath() != "/repos/o/r/contents/ios%20app/mobai.json" {
 			t.Errorf("unexpected path %s", r.URL.EscapedPath())
 		}
 		var body map[string]any
@@ -160,7 +160,7 @@ func TestPutFileNewFileEscapesPath(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 		fmt.Fprint(w, `{"commit":{"sha":"new"}}`)
 	})
-	commit, err := c.PutFile(context.Background(), "o", "r", "ios app/builder.json", &PutFileRequest{Message: "m", Content: []byte("{}")})
+	commit, err := c.PutFile(context.Background(), "o", "r", "ios app/mobai.json", &PutFileRequest{Message: "m", Content: []byte("{}")})
 	if err != nil || commit.SHA != "new" {
 		t.Fatalf("new file: %+v, %v", commit, err)
 	}

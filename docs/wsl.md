@@ -25,7 +25,7 @@ guide for details.
    wsl --shutdown
    ```
 
-3. Use the default MobAI URL. If `builder.json` sets `mobai.url` to your PC
+3. Use the default MobAI URL. If `mobai.json` sets `mobai.url` to your PC
    name, remove it or set it back:
 
    ```json

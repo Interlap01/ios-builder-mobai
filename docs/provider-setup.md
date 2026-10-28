@@ -21,7 +21,7 @@ records an existing app ID; it does not create the app or connect GitHub for you
 
 Start with a GitHub repository containing your app and a working `git push`.
 For a new Builder project, run `builder init` to set up GitHub first. Skip that
-step if `builder.json` already exists.
+step if `mobai.json` already exists.
 
 Decide which branch will hold your generated workflows. Use `main` after the
 files are merged, or your setup branch (for example `ci/macos-providers`) to test
@@ -47,7 +47,7 @@ pushed to it before a provider can discover the workflows.
    ```
 
    Paste the token once at the hidden-input prompt and press Enter. Nothing is
-   echoed. Keep the API token out of `builder.json` and command arguments.
+   echoed. Keep the API token out of `mobai.json` and command arguments.
 5. In the app's environment-variable settings, create a group named `builder`.
    Add the non-secret variable `BUILDER=1` for an unsigned first build. See
    [environment groups](https://docs.codemagic.io/yaml-basic-configuration/configuring-environment-variables/).
@@ -102,7 +102,7 @@ repository mode.
 From your project directory, review and commit the generated configuration:
 
 ```sh
-git add builder.json codemagic.yaml bitrise.yml .builder/ci/runner.sh
+git add mobai.json codemagic.yaml bitrise.yml .builder/ci/runner.sh
 git commit -m "Configure macOS build providers"
 git push
 builder auth status
@@ -120,7 +120,7 @@ cannot install directly on an iPhone. Verify the actual runner and remaining
 allowance in each provider's dashboard; Builder does not pool quotas or enforce
 a spending cap. See [allowances](providers.md#free-allowances).
 
-Once the setup branch merges, change each provider's `branch` in `builder.json`
+Once the setup branch merges, change each provider's `branch` in `mobai.json`
 to `main` and commit that change before deleting the setup branch. Also update
 Bitrise's default branch if it points to the setup branch. Do not rerun `init`
 over customized YAML without reviewing it: generated files are replaced.

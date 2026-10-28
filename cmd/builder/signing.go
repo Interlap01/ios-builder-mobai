@@ -47,14 +47,14 @@ store or enterprise).
 
 Extension targets (widgets, share/notification extensions, watch apps, app
 clips) need a profile each. Their bundle IDs are ios.extensions in
-builder.json, filled in from the local Xcode project; automatic mode creates
+mobai.json, filled in from the local Xcode project; automatic mode creates
 "Builder <distribution> <bundle id>" for each, manual mode takes one
 --extension-profile per extension.
 
 Either way the command uploads the GitHub repository secrets of the
-distribution's signing set — IOS_CERTIFICATE_<SET>, IOS_CERTIFICATE_PASSWORD_<SET>,
+distribution's signing set (IOS_CERTIFICATE_<SET>, IOS_CERTIFICATE_PASSWORD_<SET>,
 IOS_PROVISIONING_PROFILE_<SET> and IOS_EXTENSION_PROFILES_<SET>, with SET one of
-DEVELOPMENT, AD_HOC, STORE, ENTERPRISE — and writes a profile in builder.json
+DEVELOPMENT, AD_HOC, STORE, ENTERPRISE) and writes a profile in mobai.json
 (--name, default the distribution name) with that distribution. 'builder ios
 build --profile <name>' then signs with the set, and provisions it the same
 way when it is missing.
@@ -62,7 +62,7 @@ way when it is missing.
 The names and the values to put in them are always printed too, for
 Codemagic, Bitrise or a repository this login cannot write to. A failed upload
 is reported and the command carries on — the files are written and the values
-printed, but the build profile is not, since builder.json must not claim a set
+printed, but the build profile is not, since mobai.json must not claim a set
 the repository does not have — and it exits non-zero at the end.`,
 	RunE: runSigningSetup,
 }
@@ -115,9 +115,9 @@ func addSigningSetupFlags(cmd *cobra.Command) {
 	cmd.Flags().StringP("profile", "p", "", "Path to .mobileprovision file")
 	cmd.Flags().StringArray("extension-profile", nil, "Path to the .mobileprovision of an extension target listed in ios.extensions (repeatable; with --profile)")
 	cmd.Flags().StringP("key", "k", "", "Path to the private key from 'builder signing csr' (required with a .cer; automatic mode reuses it and its certificate)")
-	cmd.Flags().String("bundle-id", "", "App bundle ID (default: ios.bundleId in builder.json, else the newest IPA in ./dist)")
+	cmd.Flags().String("bundle-id", "", "App bundle ID (default: ios.bundleId in mobai.json, else the newest IPA in ./dist)")
 	cmd.Flags().String("distribution", "", "Distribution to sign for: development, ad-hoc (internal), store or enterprise (default: the --name profile's, else development; with --profile: read from the file)")
-	cmd.Flags().String("name", "", "builder.json profile to write the distribution to (default: the distribution name; an existing profile keeps its other fields, a different distribution in it is replaced)")
+	cmd.Flags().String("name", "", "mobai.json profile to write the distribution to (default: the distribution name; an existing profile keeps its other fields, a different distribution in it is replaced)")
 	cmd.Flags().StringArray("device", nil, "Device UDID to register (repeatable)")
 	cmd.Flags().Bool("devices-from-mobai", false, "Register the physical iOS devices connected to MobAI")
 	cmd.Flags().String("out-dir", ".", "Directory for the private key, .p12 and .mobileprovision")

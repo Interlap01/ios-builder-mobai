@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -42,7 +43,7 @@ Perfect for developers on Windows/Linux who need to build iOS IPAs.`,
 }
 
 func initConfig() {
-	viper.SetConfigName("builder")
+	viper.SetConfigName("mobai")
 	viper.SetConfigType("json")
 	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
@@ -62,8 +63,8 @@ func loadConfig() (*config.Config, error) {
 	mgr := config.NewManager()
 	cfg, err := mgr.Load()
 	if err != nil {
-		if err == config.ErrConfigNotFound {
-			return nil, fmt.Errorf("builder.json not found. Run: builder init")
+		if errors.Is(err, config.ErrConfigNotFound) {
+			return nil, fmt.Errorf("mobai.json not found. Run: builder init")
 		}
 		return nil, err
 	}
@@ -108,7 +109,7 @@ var initCmd = &cobra.Command{
 This command:
 - Detects your GitHub repository from git remote
 - Adds the iOS build workflow to .github/workflows/
-- Creates builder.json configuration`,
+- Creates mobai.json configuration`,
 	RunE: runInit,
 }
 
@@ -464,13 +465,17 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Save config
 	cfg, err := config.NewManager().Load()
-	if err != nil && err != config.ErrConfigNotFound {
+	if err != nil && !errors.Is(err, config.ErrConfigNotFound) {
 		return err
 	}
 	if cfg == nil {
 		cfg = &config.Config{Provider: "github"}
 	}
-	cfg.Project, cfg.Platform = projectName, "ios"
+	// mobai.json's "project" is MobAI's; the name goes in "name".
+	if cfg.Name == "" {
+		cfg.Name = projectName
+	}
+	cfg.Platform = "ios"
 	cfg.GitHub = config.GitHubConfig{Owner: githubOwner, Repo: repoName}
 	cfg.IOS.Path, cfg.IOS.Scheme = iosPath, scheme
 	if cfg.IOS.BundleID == "" {
@@ -489,12 +494,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 		cfg.Provider = "github"
 	}
 
-	fmt.Println("Creating builder.json...")
+	fmt.Println("Writing mobai.json...")
 	mgr := config.NewManager()
 	if err := mgr.Save(cfg); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
-	fmt.Println("  Created: builder.json")
+	fmt.Println("  Wrote: mobai.json")
 
 	fmt.Println()
 	fmt.Println("Setup complete!")
@@ -512,7 +517,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		fmt.Println("Committing and pushing...")
 
 		// Git add
-		addCmd := exec.Command("git", "add", ".github/workflows/ios-build.yml", ".github/workflows/ios-share.yml", "builder.json")
+		addCmd := exec.Command("git", "add", ".github/workflows/ios-build.yml", ".github/workflows/ios-share.yml", config.ConfigFileName)
 		if output, err := addCmd.CombinedOutput(); err != nil {
 			fmt.Printf("  Warning: git add failed: %s\n", strings.TrimSpace(string(output)))
 		} else {
@@ -632,20 +637,20 @@ func init() {
 	iosBuildCmd.Flags().Duration("timeout", build.DefaultTimeout, "Build timeout")
 	iosBuildCmd.Flags().Bool("unsigned", false, "Build unsigned IPA (skip code signing even if configured)")
 	iosBuildCmd.Flags().StringP("remote", "r", "origin", "Git remote to push the working-tree snapshot to")
-	iosBuildCmd.Flags().String("provider", "", "Override CI provider (default github or builder.json provider)")
-	iosBuildCmd.Flags().String("profile", "", "Build profile from builder.json (default: defaultProfile, else the top-level ios settings)")
+	iosBuildCmd.Flags().String("provider", "", "Override CI provider (default github or mobai.json provider)")
+	iosBuildCmd.Flags().String("profile", "", "Build profile from mobai.json (default: defaultProfile, else the top-level ios settings)")
 	iosBuildCmd.Flags().Bool("submit", false, "Also upload to App Store Connect and process for TestFlight (short for: ios release)")
 	iosCmd.AddCommand(iosBuildCmd)
 
 	// iOS share command flags
 	iosShareCmd.Flags().Duration("duration", 30*time.Minute, "How long the simulator stays available while unused")
 	iosShareCmd.Flags().StringP("remote", "r", "origin", "Git remote to push the working-tree snapshot to")
-	iosShareCmd.Flags().String("provider", "", "Override CI provider (default github or builder.json provider)")
+	iosShareCmd.Flags().String("provider", "", "Override CI provider (default github or mobai.json provider)")
 	iosCmd.AddCommand(iosShareCmd)
 }
 
 // effectiveProvider is the --provider flag, else the selected profile's
-// provider, else builder.json's. The coordinator resolves the same chain; this
+// provider, else mobai.json's. The coordinator resolves the same chain; this
 // exists so the GitHub client and signal handling agree with it.
 func effectiveProvider(cfg *config.Config, profile, flag string) (string, error) {
 	if flag != "" {
@@ -730,7 +735,7 @@ func runIOSShare(cmd *cobra.Command, args []string) error {
 	duration, _ := cmd.Flags().GetDuration("duration")
 	remote, _ := cmd.Flags().GetString("remote")
 	// A simulator build takes no profile, so the provider is the flag, else
-	// builder.json's.
+	// mobai.json's.
 	provider, _ := cmd.Flags().GetString("provider")
 
 	ctx := cmd.Context()
