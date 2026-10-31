@@ -1043,22 +1043,31 @@ jobs:
           # steps below. Signing reaches it through the environment: the
           # profile goes on the app and extension targets as below,
           # XCODE_XCCONFIG_FILE carries the style, team, identity and build
-          # number, and MOBAI_EXPORT_OPTIONS names the export options.
+          # number, and MOBAI_EXPORT_OPTIONS names the export options. A Debug
+          # build runs the device command instead when the file has one: a
+          # Debug build for iPhones, whose .app is packed into the IPA.
           RELEASE_CMD=""
+          ENTRY=release
           if [ "$USE_SIGNING" = "true" ]; then
             TOP=$(cd "$GITHUB_WORKSPACE" && pwd -P)
             DIR=$(cd "$GITHUB_WORKSPACE/$IOS_PATH" 2>/dev/null && pwd -P || echo "$TOP")
             while [ ! -f "$DIR/mobai.json" ] && [ "$DIR" != "$TOP" ] && [ "$DIR" != / ]; do DIR=$(dirname "$DIR"); done
-            RELEASE_CMD=$(jq -r '.build.ios.release.command // empty' "$DIR/mobai.json" 2>/dev/null || true)
+            if [ "$CONFIGURATION" = "Debug" ] && [ -n "$(jq -r '.build.ios.device.command // empty' "$DIR/mobai.json" 2>/dev/null || true)" ]; then
+              ENTRY=device
+            fi
+            RELEASE_CMD=$(jq -r --arg e "$ENTRY" '.build.ios[$e].command // empty' "$DIR/mobai.json" 2>/dev/null || true)
           fi
           if [ -n "$RELEASE_CMD" ]; then
             case "$PROFILE_BUNDLE_ID" in
               *'*'*) fail "The provisioning profile covers $PROFILE_BUNDLE_ID, a wildcard; the release command in $DIR/mobai.json exports with the app's own id. Use a profile for the app's bundle id." ;;
             esac
             # Expo's prebuild step above has made the project by now; one the
-            # command makes itself gets no profile, so say so.
-            if compgen -G "$GITHUB_WORKSPACE/$IOS_PATH/*.xcodeproj" > /dev/null; then
-              (cd "$GITHUB_WORKSPACE/$IOS_PATH" && apply_signing_to_app_target "$PROFILE_BUNDLE_ID")
+            # command makes itself gets no profile, so say so. A Flutter app's
+            # iOS path is its root, with the project in ios/.
+            XCODE_DIR="$GITHUB_WORKSPACE/$IOS_PATH"
+            compgen -G "$XCODE_DIR/*.xcodeproj" > /dev/null || XCODE_DIR="$XCODE_DIR/ios"
+            if compgen -G "$XCODE_DIR/*.xcodeproj" > /dev/null; then
+              (cd "$XCODE_DIR" && apply_signing_to_app_target "$PROFILE_BUNDLE_ID")
             else
               echo "::warning::No .xcodeproj in $IOS_PATH before the release command runs, so no target carries the provisioning profile"
             fi
@@ -1080,15 +1089,23 @@ jobs:
             MOBAI_EXPORT_OPTIONS="$RUNNER_TEMP/ExportOptions.plist"
             APP_BUNDLE_ID="$PROFILE_BUNDLE_ID" write_export_options "$MOBAI_EXPORT_OPTIONS"
             export XCODE_XCCONFIG_FILE MOBAI_EXPORT_OPTIONS
-            echo "Building with the release command in $DIR/mobai.json: $RELEASE_CMD"
+            echo "Building with the $ENTRY command in $DIR/mobai.json: $RELEASE_CMD"
             (cd "$DIR" && bash -c "$RELEASE_CMD")
-            WANT=$(jq -r '.build.ios.release.app // empty' "$DIR/mobai.json")
+            WANT=$(jq -r --arg e "$ENTRY" '.build.ios[$e].app // empty' "$DIR/mobai.json")
             IPA=$(cd "$DIR" && [ -n "$WANT" ] && ls -td $WANT 2>/dev/null | head -1 || true)
-            [ -n "$IPA" ] || fail "The release build in $DIR/mobai.json made nothing at its \"app\" path (${WANT:-not set})"
+            [ -n "$IPA" ] || fail "The $ENTRY build in $DIR/mobai.json made nothing at its \"app\" path (${WANT:-not set})"
             case "$IPA" in /*) ;; *) IPA="$DIR/$IPA" ;; esac
-            case "$IPA" in *.ipa) ;; *) fail "The release build in $DIR/mobai.json names $IPA, not an .ipa" ;; esac
             mkdir -p "$GITHUB_WORKSPACE/build"
-            mv "$IPA" "$GITHUB_WORKSPACE/build/$BUILD_ID.ipa"
+            case "$IPA" in
+              *.ipa) mv "$IPA" "$GITHUB_WORKSPACE/build/$BUILD_ID.ipa" ;;
+              *.app)
+                PKG="$RUNNER_TEMP/ipa-pack"
+                rm -rf "$PKG" && mkdir -p "$PKG/Payload"
+                cp -R "$IPA" "$PKG/Payload/"
+                (cd "$PKG" && zip -qry "$GITHUB_WORKSPACE/build/$BUILD_ID.ipa" Payload)
+                ;;
+              *) fail "The $ENTRY build in $DIR/mobai.json names $IPA, not an .ipa or a .app" ;;
+            esac
             echo "Created signed IPA: build/$BUILD_ID.ipa"
             exit 0
           fi
