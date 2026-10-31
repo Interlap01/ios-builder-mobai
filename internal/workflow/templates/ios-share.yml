@@ -429,12 +429,28 @@ jobs:
           node-version: ${{ steps.js.outputs.node_version }}
           node-version-file: ${{ steps.js.outputs.node_version_file }}
 
+      # As in ios-build.yml: a start on the last build would otherwise spend
+      # minutes installing what Metro needs. pnpm links its store into
+      # node_modules/.pnpm, so caching node_modules stays correct for every
+      # manager, and the key carries the manager name because the same
+      # lockfiles can be installed by different ones.
+      - name: Restore node_modules cache
+        if: steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo'
+        uses: actions/cache@v6
+        id: node-modules-cache
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ steps.js.outputs.manager }}-${{ hashFiles('package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lock', 'bun.lockb') }}
+          restore-keys: |
+            node-modules-${{ runner.os }}-${{ steps.js.outputs.manager }}-
+
       # Runs even on a cache hit: the manager itself still has to be on PATH for
       # the prebuild and build steps that follow.
       - name: Install JS dependencies
         if: steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo'
         env:
           JS_MANAGER: ${{ steps.js.outputs.manager }}
+          JS_DEPS_CACHED: ${{ steps.node-modules-cache.outputs.cache-hit }}
         run: |
           set -e
           # >>> js toolchain (keep identical across ios-build.yml, ios-share.yml, runner.sh)
