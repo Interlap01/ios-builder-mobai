@@ -69,7 +69,7 @@ func (c *Coordinator) Share(ctx context.Context, opts ShareOptions) (*ShareResul
 		opts.Timeout = DefaultTimeout // building can take a while before sharing starts
 	}
 	if opts.Duration == 0 {
-		opts.Duration = 30 * time.Minute
+		opts.Duration = 10 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()

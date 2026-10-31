@@ -233,7 +233,7 @@ func TestShareWorkflowTakesNoProfile(t *testing.T) {
 	if r.err != nil {
 		t.Fatalf("%v\n%s", r.err, r.log)
 	}
-	if r.outputs["scheme"] != "Top" || r.outputs["duration"] != "30m" || len(r.env) != 0 {
+	if r.outputs["scheme"] != "Top" || r.outputs["duration"] != "10m" || len(r.env) != 0 {
 		t.Fatalf("a profile reached the simulator build: outputs %v env %v\n%s", r.outputs, r.env, r.log)
 	}
 }

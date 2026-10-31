@@ -72,7 +72,7 @@ builder ios share
 Builds the working tree for the iOS simulator and makes that simulator usable
 from the [MobAI](https://mobai.run) app, so you can tap through a build without
 a Mac. It shows up under CI Devices, stays available while you are using it, and
-closes when you release it there or leave it unused (30 minutes by default, use
+closes when you release it there or leave it unused (10 minutes by default, use
 `--duration` to change). A coding agent connected to MobAI (Claude Code, Codex,
 Cursor) can drive the simulator the same way.
 
@@ -97,7 +97,7 @@ git tag ios-share/my-build && git push origin ios-share/my-build   # simulator
 The run is named after the tag. Build settings come from `mobai.json` in the
 tagged commit (`ios.path`, `ios.scheme`, `ios.signing`, `ios.configuration`,
 `flutter.version`, `kmp.jdkVersion`), the simulator stays available for the
-default 30 minutes, and the tag is deleted when the run ends. The IPA is
+default 10 minutes, and the tag is deleted when the run ends. The IPA is
 attached to the run as an artifact. A tag carries no flags, so a tagged IPA
 build cannot pick a [profile](#build-profiles) per run; it applies the profile
 named by `defaultProfile`, if there is one. The simulator build takes no

@@ -293,7 +293,7 @@ func (c *Coordinator) shareRemote(ctx context.Context, opts ShareOptions, s *con
 		return nil, fmt.Errorf("duration and timeout must be positive")
 	}
 	if opts.Duration == 0 {
-		opts.Duration = 30 * time.Minute
+		opts.Duration = 10 * time.Minute
 	}
 	if opts.Duration > 60*time.Minute {
 		return nil, fmt.Errorf("%s idle duration cannot exceed 60m; the workflow has a 90-minute total limit including setup/build", p.Name())

@@ -140,7 +140,10 @@ jobs:
           param scheme           "$IN_SCHEME" '(.profiles[$p].scheme // .ios.scheme)' ''
           param use_signing      "$IN_USE_SIGNING" '(if $p != "" then ((.profiles[$p].distribution // "") != "") else .ios.signing end)' 'false'
           param configuration    "$IN_CONFIGURATION" '(.profiles[$p].configuration // (if $p != "" and (.profiles[$p].distribution // "") != "" then (if .profiles[$p].distribution == "development" then "Debug" else "Release" end) else .ios.configuration end))' 'Debug'
-          param flutter_version  "$IN_FLUTTER_VERSION" '.flutter.version' ''
+          # Else the Flutter the project pins with fvm.
+          FVM=$(jq -r '.flutter // empty' "$DIR/.fvmrc" 2>/dev/null || true)
+          [ -n "$FVM" ] || FVM=$(jq -r '.flutterSdkVersion // empty' "$DIR/.fvm/fvm_config.json" 2>/dev/null || true)
+          param flutter_version  "$IN_FLUTTER_VERSION" '.flutter.version' "$FVM"
           param jdk_version      "$IN_JDK_VERSION" '.kmp.jdkVersion' '17'
           # A build number only comes from `builder ios release`, never the file.
           param build_number     "$IN_BUILD_NUMBER" '""' ''
@@ -323,6 +326,27 @@ jobs:
           flutter-version: ${{ steps.params.outputs.flutter_version || '' }}
           channel: stable
           cache: true
+
+      # A project pinned with fvm builds with `fvm flutter ...`: the runner
+      # has that Flutter but no fvm, so fvm passes through to it.
+      - name: Pass fvm through to Flutter
+        if: steps.detect.outputs.type == 'flutter'
+        run: |
+          command -v fvm >/dev/null && exit 0
+          FLUTTER=$(command -v flutter)
+          VERSION=$(flutter --version --machine | jq -r .frameworkVersion)
+          mkdir -p "$RUNNER_TEMP/fvm-shim"
+          cat > "$RUNNER_TEMP/fvm-shim/fvm" <<EOF
+          #!/bin/bash
+          case "\$1" in
+            flutter|dart) c=\$1; shift; exec "\$c" "\$@" ;;
+            api) if [ "\$2" = list ]; then echo '{"versions":[{"name":"$VERSION","flutterExec":"$FLUTTER"}]}'; exit 0; fi ;;
+          esac
+          echo "fvm \$1: only fvm flutter, fvm dart and fvm api list run here" >&2
+          exit 1
+          EOF
+          chmod +x "$RUNNER_TEMP/fvm-shim/fvm"
+          echo "$RUNNER_TEMP/fvm-shim" >> "$GITHUB_PATH"
 
       - name: Flutter pub get
         if: steps.detect.outputs.type == 'flutter'

@@ -643,7 +643,7 @@ func init() {
 	iosCmd.AddCommand(iosBuildCmd)
 
 	// iOS share command flags
-	iosShareCmd.Flags().Duration("duration", 30*time.Minute, "How long the simulator stays available while unused")
+	iosShareCmd.Flags().Duration("duration", 10*time.Minute, "How long the simulator stays available while unused")
 	iosShareCmd.Flags().StringP("remote", "r", "origin", "Git remote to push the working-tree snapshot to")
 	iosShareCmd.Flags().String("provider", "", "Override CI provider (default github or mobai.json provider)")
 	iosCmd.AddCommand(iosShareCmd)
