@@ -3,8 +3,9 @@ package hotreload
 import (
 	"fmt"
 	"net"
-	"os/exec"
 	"strings"
+
+	"github.com/MobAI-App/ios-builder/internal/procutil"
 )
 
 // MetroLaunchArguments are the launch arguments that point a React Native
@@ -19,7 +20,7 @@ func MetroLaunchArguments(host string, port int) []string {
 // when there is none.
 func LocalIP() string {
 	if isWSL2() {
-		cmd := exec.Command("powershell.exe", "-NoProfile", "-Command",
+		cmd := procutil.Command("powershell.exe", "-NoProfile", "-Command",
 			`Get-NetIPAddress -AddressFamily IPv4 | Where-Object { ($_.IPAddress -notlike "169.*") -and ($_.IPAddress -notlike "127.*") -and ($_.IPAddress -notlike "172.*") } | Select-Object -First 1 -ExpandProperty IPAddress`)
 		output, err := cmd.Output()
 		if err != nil {

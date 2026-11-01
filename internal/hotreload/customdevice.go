@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
+
+	"github.com/MobAI-App/ios-builder/internal/procutil"
 )
 
 // CustomDeviceID is the Flutter device id of the MobAI iOS custom device:
@@ -32,7 +33,7 @@ type CustomDevice struct {
 // WriteCustomDevice turns on Flutter's custom devices and writes d as the
 // mobai-ios device to Flutter's custom_devices.json.
 func WriteCustomDevice(d *CustomDevice) error {
-	if err := exec.Command("flutter", "config", "--enable-custom-devices").Run(); err != nil {
+	if err := procutil.Command("flutter", "config", "--enable-custom-devices").Run(); err != nil {
 		return fmt.Errorf("failed to enable custom devices - run 'flutter config --enable-custom-devices' manually first: %w", err)
 	}
 

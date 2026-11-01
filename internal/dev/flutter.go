@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/MobAI-App/ios-builder/internal/config"
 	"github.com/MobAI-App/ios-builder/internal/hotreload"
 	"github.com/MobAI-App/ios-builder/internal/mobai"
+	"github.com/MobAI-App/ios-builder/internal/procutil"
 )
 
 // watcher is the interface for file change watchers.
@@ -126,7 +126,7 @@ func (h *FlutterHandler) runFlutterAttach(ctx context.Context, deviceID, debugUR
 	fmt.Println("Attaching Flutter debugger...")
 	fmt.Println()
 
-	cmd := exec.CommandContext(ctx, "flutter", "attach", "-d", "mobai-ios", "--debug-url="+debugURL)
+	cmd := procutil.CommandContext(ctx, "flutter", "attach", "-d", "mobai-ios", "--debug-url="+debugURL)
 	cmd.Env = append(os.Environ(), "MOBAI_DEVICE_ID="+deviceID)
 
 	h.stdinMux = NewStdinMux()

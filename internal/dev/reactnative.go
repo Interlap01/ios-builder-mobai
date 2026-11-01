@@ -14,6 +14,7 @@ import (
 
 	"github.com/MobAI-App/ios-builder/internal/hotreload"
 	"github.com/MobAI-App/ios-builder/internal/mobai"
+	"github.com/MobAI-App/ios-builder/internal/procutil"
 )
 
 const (
@@ -139,6 +140,8 @@ func (h *ReactNativeHandler) startMetro(ctx context.Context) error {
 	port := strconv.Itoa(h.metroPort)
 	metroCmd := fmt.Sprintf("npx react-native start --port %s --host 0.0.0.0", port)
 
+	// These open a terminal so the user sees Metro: their windows stay. Only
+	// Metro in the background is started hidden.
 	switch runtime.GOOS {
 	case "darwin":
 		script := fmt.Sprintf(`tell application "Terminal"
@@ -159,7 +162,7 @@ func (h *ReactNativeHandler) startMetro(ctx context.Context) error {
 			h.metroCmd = exec.Command("xterm", "-hold", "-e", metroCmd)
 		} else {
 			fmt.Println("No terminal emulator found. Starting Metro in background...")
-			h.metroCmd = exec.CommandContext(ctx, "npx", "react-native", "start", "--port", port, "--host", "0.0.0.0")
+			h.metroCmd = procutil.CommandContext(ctx, "npx", "react-native", "start", "--port", port, "--host", "0.0.0.0")
 			h.metroCmd.Stdout = os.Stdout
 			h.metroCmd.Stderr = os.Stderr
 		}

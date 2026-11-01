@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"regexp"
@@ -22,6 +21,7 @@ import (
 	"github.com/MobAI-App/ios-builder/internal/config"
 	"github.com/MobAI-App/ios-builder/internal/github"
 	"github.com/MobAI-App/ios-builder/internal/otainstall"
+	"github.com/MobAI-App/ios-builder/internal/procutil"
 	"github.com/MobAI-App/ios-builder/internal/release"
 	"github.com/MobAI-App/ios-builder/internal/signing"
 	"github.com/MobAI-App/ios-builder/internal/update"
@@ -198,7 +198,7 @@ func isKMPProject() bool {
 }
 
 func getLocalFlutterVersion() string {
-	cmd := exec.Command("flutter", "--version", "--machine")
+	cmd := procutil.Command("flutter", "--version", "--machine")
 	output, err := cmd.Output()
 	if err != nil {
 		return ""
@@ -294,7 +294,7 @@ func bundleIDsFromPbxproj(text string) []string {
 
 func detectGitHubRepo(remoteName string) (owner, repo string, err error) {
 	// Try to get GitHub remote URL from git
-	cmd := exec.Command("git", "remote", "get-url", remoteName)
+	cmd := procutil.Command("git", "remote", "get-url", remoteName)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", "", fmt.Errorf("not a git repository or no '%s' remote", remoteName)
@@ -517,7 +517,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		fmt.Println("Committing and pushing...")
 
 		// Git add
-		addCmd := exec.Command("git", "add", ".github/workflows/ios-build.yml", ".github/workflows/ios-share.yml", config.ConfigFileName)
+		addCmd := procutil.Command("git", "add", ".github/workflows/ios-build.yml", ".github/workflows/ios-share.yml", config.ConfigFileName)
 		if output, err := addCmd.CombinedOutput(); err != nil {
 			fmt.Printf("  Warning: git add failed: %s\n", strings.TrimSpace(string(output)))
 		} else {
@@ -525,7 +525,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 
 		// Git commit
-		commitCmd := exec.Command("git", "commit", "-m", "Add iOS build workflow")
+		commitCmd := procutil.Command("git", "commit", "-m", "Add iOS build workflow")
 		if output, err := commitCmd.CombinedOutput(); err != nil {
 			outputStr := strings.TrimSpace(string(output))
 			if strings.Contains(outputStr, "nothing to commit") {
@@ -538,7 +538,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 
 		// Git push
-		pushCmd := exec.Command("git", "push")
+		pushCmd := procutil.Command("git", "push")
 		if output, err := pushCmd.CombinedOutput(); err != nil {
 			fmt.Printf("  Warning: git push failed: %s\n", strings.TrimSpace(string(output)))
 		} else {

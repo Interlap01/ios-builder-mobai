@@ -6,9 +6,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/MobAI-App/ios-builder/internal/procutil"
 )
 
 // refPrefix is the remote ref namespace holding build snapshots. Refs outside
@@ -44,7 +45,31 @@ func Create(ctx context.Context, message string) (string, error) {
 		return "", err
 	}
 
-	return git(ctx, index, "commit-tree", tree, "-p", "HEAD", "-m", message)
+	return gitEnv(ctx, index, fallbackIdentity(ctx), "commit-tree", tree, "-p", "HEAD", "-m", message)
+}
+
+// The identity a snapshot is committed as when git has none. A fresh
+// machine (a repository cloned through MobAI on Windows, say) often has no
+// user.name or user.email, and commit-tree then refuses. The snapshot only
+// lives on a hidden ref, so who it names does not matter.
+const (
+	fallbackName  = "MobAI"
+	fallbackEmail = "snapshot@mobai.run"
+)
+
+// fallbackIdentity is the environment that fills in whichever of the name
+// and email git has no value for, nil when it has both. The user's own
+// identity is kept whenever one is set.
+func fallbackIdentity(ctx context.Context) []string {
+	var env []string
+	// git config exits 1 for a key with no value: that reads as unset.
+	if name, _ := git(ctx, "", "config", "user.name"); name == "" {
+		env = append(env, "GIT_AUTHOR_NAME="+fallbackName, "GIT_COMMITTER_NAME="+fallbackName)
+	}
+	if email, _ := git(ctx, "", "config", "user.email"); email == "" {
+		env = append(env, "GIT_AUTHOR_EMAIL="+fallbackEmail, "GIT_COMMITTER_EMAIL="+fallbackEmail)
+	}
+	return env
 }
 
 // Push publishes a snapshot commit to ref on the remote.
@@ -60,13 +85,19 @@ func Delete(ctx context.Context, remote, ref string) error {
 }
 
 func git(ctx context.Context, index string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
+	return gitEnv(ctx, index, nil, args...)
+}
+
+// gitEnv runs git with env added to its environment.
+func gitEnv(ctx context.Context, index string, env []string, args ...string) (string, error) {
+	cmd := procutil.CommandContext(ctx, "git", args...)
 	// Without this, a repository using HTTPS without a credential helper blocks
 	// on an interactive password prompt instead of failing.
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	if index != "" {
 		cmd.Env = append(cmd.Env, "GIT_INDEX_FILE="+index)
 	}
+	cmd.Env = append(cmd.Env, env...)
 
 	var stderr strings.Builder
 	cmd.Stderr = &stderr

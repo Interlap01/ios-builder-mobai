@@ -5,12 +5,12 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/MobAI-App/ios-builder/internal/ipa"
 	"github.com/MobAI-App/ios-builder/internal/mobai"
+	"github.com/MobAI-App/ios-builder/internal/procutil"
 	"github.com/gorilla/websocket"
 	"github.com/manifoldco/promptui"
 )
@@ -305,7 +305,7 @@ func toWindowsPathIfWSL(path string) string {
 		return path
 	}
 
-	cmd := exec.Command("wslpath", "-w", path)
+	cmd := procutil.Command("wslpath", "-w", path)
 	out, err := cmd.Output()
 	if err != nil {
 		return path
