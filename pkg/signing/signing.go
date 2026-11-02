@@ -32,7 +32,56 @@ type (
 	ManualOptions = signing.ManualOptions
 	ManualResult  = signing.ManualResult
 	EnsureOptions = signing.EnsureOptions
+
+	MissingEntitlement = signing.MissingEntitlement
 )
+
+// IdentifiersURL is the portal page where App IDs' capabilities, App Groups
+// and iCloud containers are edited by hand.
+const IdentifiersURL = signing.IdentifiersURL
+
+// ProjectEntitlements reads what the app and extension targets of the Xcode
+// project in iosPath ask for, by bundle ID, for AutoOptions.Entitlements.
+func ProjectEntitlements(iosPath, bundleID string, typ Type, log io.Writer) map[string]map[string]any {
+	return signing.ProjectEntitlements(iosPath, bundleID, typ, log)
+}
+
+// ResolveEntitlements fills in the team prefix and bundle ID an
+// .entitlements file names, as Xcode does when it signs.
+func ResolveEntitlements(entitlements map[string]any, team, bundleID string) map[string]any {
+	return signing.ResolveEntitlements(entitlements, team, bundleID)
+}
+
+// MissingEntitlements compares what a target asks for (resolved) with what
+// its profile grants.
+func MissingEntitlements(bundleID string, wanted map[string]any, profile []byte) []MissingEntitlement {
+	return signing.MissingEntitlements(bundleID, wanted, profile)
+}
+
+// CapabilityName is how Apple's portal names the capability behind an
+// entitlement.
+func CapabilityName(key string) string { return signing.CapabilityName(key) }
+
+// ProfileTeam is the team a .mobileprovision belongs to.
+func ProfileTeam(profile []byte) (string, error) { return signing.ProfileTeam(profile) }
+
+// ProfileBundleID is the app id a .mobileprovision covers, without the team
+// prefix; a wildcard profile ends in "*".
+func ProfileBundleID(profile []byte) (string, error) { return signing.ProfileBundleID(profile) }
+
+// ProfileDeviceUDIDs lists the devices a .mobileprovision covers; none for
+// App Store and enterprise profiles.
+func ProfileDeviceUDIDs(profile []byte) ([]string, error) { return signing.ProfileDeviceUDIDs(profile) }
+
+// ProfileHasCertificate reports whether a .mobileprovision was made for a
+// certificate (DER).
+func ProfileHasCertificate(profile, certDER []byte) bool {
+	return signing.ProfileHasCertificate(profile, certDER)
+}
+
+// Covers reports whether a profile's app id (exact, or a "*" wildcard)
+// covers a bundle id.
+func Covers(appID, bundleID string) bool { return signing.Covers(appID, bundleID) }
 
 const (
 	TypeDevelopment = signing.TypeDevelopment

@@ -394,6 +394,13 @@ internal/
 - **Extension Targets**: `ios.extensions` lists their bundle ids (`init`/`signing setup` append what
   `xcodeproj.ExtensionBundleIDs` finds; managed Expo lists by hand). `signing.Auto` makes an App ID and
   `Builder <d> <id>` profile per entry, uploaded as `IOS_EXTENSION_PROFILES_<SET>` (JSON of id → base64).
+- **Capabilities**: a new App ID has none, so its profiles grant nothing the app asks for.
+  `AutoOptions.Entitlements` (bundle id → the target's `.entitlements`; `Setup` and `EnsureSecrets`
+  read them with `xcodeproj.Entitlements` from `CODE_SIGN_ENTITLEMENTS`, Debug for development) turns
+  on the capability behind each entitlement (`signing/capabilities.go`, `POST /v1/bundleIdCapabilities`;
+  a refusal is only a warning) and remakes that App ID's profile ("capabilities changed"; Apple also
+  marks it INVALID). `AutoResult.Missing` is what the profiles still lack after that: App Groups,
+  iCloud containers and merchant IDs, which the public API cannot assign, or an unknown capability.
 - **Extension Secrets**: always written, `{}` for none; required by `missingSigningSecrets` only when
   the list is non-empty. Manual mode: one `--extension-profile` each, matched by the profile's app id.
   Secrets are unreadable, so a build re-provisions when the project has extensions not in mobai.json

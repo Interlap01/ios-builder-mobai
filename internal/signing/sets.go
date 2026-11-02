@@ -75,6 +75,9 @@ type SetupOptions struct {
 	OutDirAsGiven string
 	// Log receives progress lines; nil discards them.
 	Log io.Writer
+	// Entitlements are AutoOptions.Entitlements; nil reads them from the
+	// Xcode project at ios.path, when there is one.
+	Entitlements map[string]map[string]any
 	// SaveConfig persists cfg with the profile written; nil writes
 	// mobai.json in the working directory, as the CLI does. A program with
 	// no checkout (one that commits mobai.json through the GitHub API, say)
@@ -139,9 +142,13 @@ func Setup(ctx context.Context, client *asc.Client, store SecretStore, storeErr 
 		outDir = "."
 	}
 	res := &SetupResult{SigningSet: set, BuildProfile: profileName}
+	entitlements := opts.Entitlements
+	if entitlements == nil {
+		entitlements = ProjectEntitlements(cfg.IOS.Path, opts.BundleID, opts.Type, opts.Log)
+	}
 	res.AutoResult, err = Auto(ctx, client, &AutoOptions{
 		BundleID: opts.BundleID, Extensions: cfg.IOS.Extensions, Type: opts.Type, Devices: opts.Devices, KeyPEM: opts.KeyPEM, CommonName: cfg.DisplayName(),
-		Password: opts.Password, Force: opts.Force, OutDir: outDir, Log: opts.Log,
+		Password: opts.Password, Force: opts.Force, OutDir: outDir, Log: opts.Log, Entitlements: entitlements,
 	})
 	if err != nil {
 		return res, err
@@ -314,6 +321,7 @@ func EnsureSecrets(ctx context.Context, cfg *config.Config, store SecretStore, a
 	logf(log, "Provisioning %s signing for %s through App Store Connect...", typ, bundleID)
 	res, err := Auto(ctx, client, &AutoOptions{
 		BundleID: bundleID, Extensions: cfg.IOS.Extensions, Type: typ, KeyPEM: keyPEM, CommonName: cfg.DisplayName(), Password: password, OutDir: dirs[0], Log: log,
+		Entitlements: ProjectEntitlements(cfg.IOS.Path, bundleID, typ, log),
 	})
 	if err != nil {
 		if keyPath == "" && CertificateRefused(err) {
@@ -341,6 +349,23 @@ func EnsureSecrets(ctx context.Context, cfg *config.Config, store SecretStore, a
 	}
 	logf(log, "")
 	return nil
+}
+
+// ProjectEntitlements reads what the app and extension targets of the Xcode
+// project in iosPath ask for, from the configuration a distribution builds
+// (Debug for development); nil without a project. A project it cannot read
+// is only a warning: signing then leaves the capabilities as they are.
+func ProjectEntitlements(iosPath, bundleID string, typ Type, log io.Writer) map[string]map[string]any {
+	configuration := "Release"
+	if typ == TypeDevelopment {
+		configuration = "Debug"
+	}
+	ents, err := xcodeproj.Entitlements(iosPath, bundleID, configuration)
+	if err != nil {
+		logf(log, "Warning: could not read the entitlements of the Xcode project: %v. The App ID's capabilities stay as they are.", err)
+		return nil
+	}
+	return ents
 }
 
 // PrintFiles lists what Auto wrote and, when Builder made it up, the .p12

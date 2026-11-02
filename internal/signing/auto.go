@@ -94,6 +94,12 @@ type AutoOptions struct {
 	// Devices are registered when missing; development and ad-hoc profiles
 	// then cover every enabled iOS device on the account.
 	Devices []Device
+	// Entitlements are what each target asks for, by bundle ID (the app's
+	// and its extensions'), as its .entitlements file has them: the
+	// capability behind each is turned on for the App ID, and what the
+	// profiles still lack comes back in AutoResult.Missing. Nil leaves the
+	// capabilities as they are.
+	Entitlements map[string]map[string]any
 	// KeyPEM is an existing private key. When nil a key is generated and
 	// written to OutDir/ios-signing-<type>.key.
 	KeyPEM []byte
@@ -181,6 +187,10 @@ type AutoResult struct {
 	P12               []byte            `json:"-"`
 	ProfileContent    []byte            `json:"-"`
 	ExtensionProfiles map[string][]byte `json:"-"`
+	// Missing is what the targets ask for that their profiles still do not
+	// grant: an App Group, iCloud container or merchant ID the App ID does
+	// not list yet (the API cannot add one), or a capability Apple refused.
+	Missing []MissingEntitlement `json:"missing,omitempty"`
 }
 
 // Auto provisions everything an iOS build needs to sign through the App Store
@@ -224,6 +234,18 @@ func Auto(ctx context.Context, client *asc.Client, opts *AutoOptions) (*AutoResu
 		}
 	}
 
+	// Capabilities, before the profiles: a profile carries the entitlements
+	// its App ID had when it was made, so one made before a capability was
+	// turned on is made again.
+	stale := map[string]bool{}
+	for _, b := range append([]*asc.BundleID{bundle}, extensionBundles...) {
+		changed, err := ensureCapabilities(ctx, client, b, opts.Entitlements[b.Identifier], opts.Log)
+		if err != nil {
+			return res, err
+		}
+		stale[b.Identifier] = changed
+	}
+
 	// 2. Devices, before anything that counts against a quota: a development
 	// profile with no device to cover is an error, and it must not cost a
 	// certificate.
@@ -259,17 +281,26 @@ func Auto(ctx context.Context, client *asc.Client, opts *AutoOptions) (*AutoResu
 	}
 
 	// 4. Profiles: the app's, then one per extension
-	profile, err := ensureProfile(ctx, client, opts, bundle, cert.ID, deviceIDs, now(), &res.Profile)
+	profile, err := ensureProfile(ctx, client, opts, bundle, cert.ID, deviceIDs, stale[bundle.Identifier], now(), &res.Profile)
 	if err != nil {
 		return res, err
 	}
 	res.ProfileContent = profile.Content
+	res.Missing = append(res.Missing, missingFor(bundle.Identifier, opts.Entitlements, profile.Content)...)
 	for i, b := range extensionBundles {
-		p, err := ensureProfile(ctx, client, opts, b, cert.ID, deviceIDs, now(), &res.Extensions[i].Profile)
+		p, err := ensureProfile(ctx, client, opts, b, cert.ID, deviceIDs, stale[b.Identifier], now(), &res.Extensions[i].Profile)
 		if err != nil {
 			return res, err
 		}
 		res.ExtensionProfiles[b.Identifier] = p.Content
+		res.Missing = append(res.Missing, missingFor(b.Identifier, opts.Entitlements, p.Content)...)
+	}
+	for _, m := range res.Missing {
+		what := m.Capability
+		if len(m.Values) > 0 {
+			what += " (" + strings.Join(m.Values, ", ") + ")"
+		}
+		logf(opts.Log, "Warning: %s asks for %s, which its profile does not grant. Add it to the App ID at %s", m.BundleID, what, IdentifiersURL)
 	}
 
 	// 5. Files
@@ -441,7 +472,8 @@ func ensureDevices(ctx context.Context, client *asc.Client, opts *AutoOptions, o
 // ensureProfile reuses the Builder-managed profile when it is ACTIVE,
 // unexpired and still lists exactly this certificate and these devices;
 // otherwise it deletes and recreates it. Same-named duplicates go too.
-func ensureProfile(ctx context.Context, client *asc.Client, opts *AutoOptions, bundle *asc.BundleID, certID string, deviceIDs []string, now time.Time, out *ProfileResult) (*asc.Profile, error) {
+// stale says the App ID's capabilities changed, so its profile is made again.
+func ensureProfile(ctx context.Context, client *asc.Client, opts *AutoOptions, bundle *asc.BundleID, certID string, deviceIDs []string, stale bool, now time.Time, out *ProfileResult) (*asc.Profile, error) {
 	name := ProfileName(opts.Type, bundle.Identifier)
 	profileType := opts.Type.profileType()
 	existing, err := client.ListProfilesByName(ctx, name)
@@ -453,6 +485,9 @@ func ensureProfile(ctx context.Context, client *asc.Client, opts *AutoOptions, b
 		p := &existing[0]
 		if reason, err = recreateReason(ctx, client, opts, p, certID, deviceIDs, now); err != nil {
 			return nil, err
+		}
+		if reason == "" && stale {
+			reason = "capabilities changed"
 		}
 		if reason == "" {
 			logf(opts.Log, "Reusing profile %q (%s, expires %s)", p.Name, strings.ToLower(p.State), p.ExpirationDate.Format("2006-01-02"))

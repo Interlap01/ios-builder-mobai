@@ -47,6 +47,8 @@ type Profile struct {
 	ID, Name, Type, State string
 	CertIDs, DeviceIDs    []string
 	Exp                   time.Time
+	// Bundle is the identifier of the App ID the profile is for.
+	Bundle string
 }
 
 // Portal serves the endpoints and records every call.
@@ -59,9 +61,15 @@ type Portal struct {
 	seq    int
 
 	BundleIDs []string // registered identifiers
-	Certs     []Cert
-	Devices   []Device
-	Profiles  []Profile
+	// Capabilities lists the capability types turned on per identifier.
+	Capabilities map[string][]string
+	// PlistProfiles makes profile content a plist of team TEAM1 whose
+	// entitlements follow the App ID's capabilities, instead of
+	// "profile:<id>".
+	PlistProfiles bool
+	Certs         []Cert
+	Devices       []Device
+	Profiles      []Profile
 	// RefuseCertificates / RefuseDevices make the POST fail with Apple's quota wording.
 	RefuseCertificates, RefuseDevices bool
 }
@@ -127,7 +135,11 @@ func New(t *testing.T) *Portal {
 		return res("devices", d.ID, map[string]any{"name": d.Name, "udid": d.UDID, "platform": "IOS", "status": d.Status, "deviceClass": "IPHONE"})
 	}
 	profileRes := func(pr Profile) map[string]any {
-		return res("profiles", pr.ID, map[string]any{"name": pr.Name, "profileType": pr.Type, "profileState": pr.State, "uuid": "uuid-" + pr.ID, "platform": "IOS", "profileContent": base64.StdEncoding.EncodeToString([]byte("profile:" + pr.ID)), "expirationDate": pr.Exp.Format(time.RFC3339)})
+		content := []byte("profile:" + pr.ID)
+		if p.PlistProfiles {
+			content = p.profilePlist(pr)
+		}
+		return res("profiles", pr.ID, map[string]any{"name": pr.Name, "profileType": pr.Type, "profileState": pr.State, "uuid": "uuid-" + pr.ID, "platform": "IOS", "profileContent": base64.StdEncoding.EncodeToString(content), "expirationDate": pr.Exp.Format(time.RFC3339)})
 	}
 
 	mux.HandleFunc("GET /v1/bundleIds", wrap(func(w http.ResponseWriter, r *http.Request) {
@@ -148,6 +160,25 @@ func New(t *testing.T) *Portal {
 		id := str(a, "identifier")
 		p.BundleIDs = append(p.BundleIDs, id)
 		writeJSON(w, 201, map[string]any{"data": res("bundleIds", "bid-"+id, a)})
+	}))
+	mux.HandleFunc("GET /v1/bundleIds/{id}/bundleIdCapabilities", wrap(func(w http.ResponseWriter, r *http.Request) {
+		id := strings.TrimPrefix(r.PathValue("id"), "bid-")
+		var rs []any
+		for _, typ := range p.Capabilities[id] {
+			rs = append(rs, res("bundleIdCapabilities", r.PathValue("id")+"_"+typ, map[string]any{"capabilityType": typ}))
+		}
+		many(w, rs...)
+	}))
+	mux.HandleFunc("POST /v1/bundleIdCapabilities", wrap(func(w http.ResponseWriter, r *http.Request) {
+		b := body(r)
+		a := attrs(b)
+		bundle, _ := Obj(p.t, b, "data", "relationships", "bundleId", "data")["id"].(string)
+		id := strings.TrimPrefix(bundle, "bid-")
+		if p.Capabilities == nil {
+			p.Capabilities = map[string][]string{}
+		}
+		p.Capabilities[id] = append(p.Capabilities[id], str(a, "capabilityType"))
+		writeJSON(w, 201, map[string]any{"data": res("bundleIdCapabilities", bundle+"_"+str(a, "capabilityType"), a)})
 	}))
 	mux.HandleFunc("GET /v1/certificates", wrap(func(w http.ResponseWriter, r *http.Request) {
 		var rs []any
@@ -237,7 +268,7 @@ func New(t *testing.T) *Portal {
 		if !ok || !slices.Contains(p.BundleIDs, strings.TrimPrefix(bundle, "bid-")) {
 			p.t.Errorf("profile POST for unknown bundle ID %q", bundle)
 		}
-		pr := Profile{ID: p.nextID("prof"), Name: str(a, "name"), Type: str(a, "profileType"), State: "ACTIVE", CertIDs: linkIDs(b, "certificates"), DeviceIDs: linkIDs(b, "devices"), Exp: Now.AddDate(1, 0, 0)}
+		pr := Profile{ID: p.nextID("prof"), Name: str(a, "name"), Type: str(a, "profileType"), State: "ACTIVE", CertIDs: linkIDs(b, "certificates"), DeviceIDs: linkIDs(b, "devices"), Exp: Now.AddDate(1, 0, 0), Bundle: strings.TrimPrefix(bundle, "bid-")}
 		if pr.Type == asc.ProfileTypeIOSAppStore && pr.DeviceIDs != nil {
 			p.t.Errorf("App Store profile POST carries devices: %v", pr.DeviceIDs)
 		}
@@ -255,6 +286,24 @@ func New(t *testing.T) *Portal {
 	p.srv = httptest.NewServer(mux)
 	t.Cleanup(p.srv.Close)
 	return p
+}
+
+// profilePlist is a profile's content when PlistProfiles is set: what
+// Apple's would carry for the App ID's capabilities as they are now. App
+// Groups come with no groups, since the API cannot assign any.
+func (p *Portal) profilePlist(pr Profile) []byte {
+	ents := "<key>application-identifier</key><string>TEAM1." + pr.Bundle + "</string><key>get-task-allow</key><true/>"
+	for _, typ := range p.Capabilities[pr.Bundle] {
+		switch typ {
+		case "PUSH_NOTIFICATIONS":
+			ents += "<key>aps-environment</key><string>development</string>"
+		case "ASSOCIATED_DOMAINS":
+			ents += "<key>com.apple.developer.associated-domains</key><string>*</string>"
+		case "APP_GROUPS":
+			ents += "<key>com.apple.security.application-groups</key><array/>"
+		}
+	}
+	return []byte(`<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>TeamIdentifier</key><array><string>TEAM1</string></array><key>Entitlements</key><dict>` + ents + `</dict></dict></plist>`)
 }
 
 func (p *Portal) nextID(prefix string) string {

@@ -42,6 +42,31 @@ func ProfileDevices(data []byte) (int, error) {
 	return len(devices), nil
 }
 
+// ProfileHasCertificate reports whether a .mobileprovision was made for a
+// certificate (DER), so the key behind it can sign with the profile.
+func ProfileHasCertificate(data, certDER []byte) bool {
+	dict, err := profilePlist(data)
+	if err != nil {
+		return false
+	}
+	certs, _ := dict["DeveloperCertificates"].([]any)
+	for _, c := range certs {
+		if der, ok := c.([]byte); ok && bytes.Equal(der, certDER) {
+			return true
+		}
+	}
+	return false
+}
+
+// ProfileDeviceUDIDs lists the UDIDs a .mobileprovision covers.
+func ProfileDeviceUDIDs(data []byte) ([]string, error) {
+	dict, err := profilePlist(data)
+	if err != nil {
+		return nil, err
+	}
+	return stringsOf(dict["ProvisionedDevices"]), nil
+}
+
 // profilePlist is the plist inside a .mobileprovision's CMS signature.
 func profilePlist(data []byte) (map[string]any, error) {
 	start := bytes.Index(data, []byte("<?xml"))
