@@ -67,6 +67,32 @@ func TestPollForArtifactReportsTheFailedStepAndErrors(t *testing.T) {
 	}
 }
 
+// A job GitHub never found a runner for is cancelled with no steps, and its
+// annotation says why; a run's notices are left out.
+func TestRunFailureOfAJobThatNeverRan(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/repos/o/r/actions/runs/7/jobs":
+			fmt.Fprint(w, `{"total_count":1,"jobs":[{"id":99,"name":"build","status":"completed","conclusion":"cancelled","steps":[]}]}`)
+		case "/repos/o/r/check-runs/99/annotations":
+			fmt.Fprint(w, `[
+				{"path":".github","start_line":1,"annotation_level":"failure","title":"","message":"The job was not acquired by Runner of type hosted even after multiple attempts"},
+				{"path":".github","start_line":1,"annotation_level":"notice","title":"","message":"Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times."}]`)
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("tok")
+	c.baseURL = srv.URL
+	f, err := c.RunFailure(context.Background(), "o", "r", 7)
+	if err != nil || f == nil || f.Step != "" || len(f.Messages) != 1 || !strings.Contains(f.Messages[0], "not acquired by Runner") {
+		t.Fatalf("failure = %+v, %v", f, err)
+	}
+}
+
 func TestPollForArtifactWithoutAnnotations(t *testing.T) {
 	// The annotations endpoint failing (a token without checks:read, an old
 	// GHES) still leaves the conclusion and the step.

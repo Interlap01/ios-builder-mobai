@@ -185,7 +185,9 @@ type RunFailure struct {
 }
 
 // RunFailure reads the failed job, its failed step and its error annotations.
-// It returns nil when no job failed.
+// A job GitHub gave up on before any step ran (no runner free for it) is
+// cancelled, not failed, and counts too, with no step: its annotation is the
+// only reason. It returns nil when no job failed.
 func (c *Client) RunFailure(ctx context.Context, owner, repo string, runID int64) (*RunFailure, error) {
 	jobs, err := c.ListRunJobs(ctx, owner, repo, runID)
 	if err != nil {
@@ -199,7 +201,8 @@ func (c *Client) RunFailure(ctx context.Context, owner, repo string, runID int64
 				break
 			}
 		}
-		if step == "" && job.Conclusion != "failure" {
+		neverRan := job.Conclusion == "cancelled" && len(job.Steps) == 0
+		if step == "" && job.Conclusion != "failure" && !neverRan {
 			continue
 		}
 		failure := &RunFailure{Job: job.Name, Step: step}
