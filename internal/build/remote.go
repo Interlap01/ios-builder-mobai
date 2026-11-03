@@ -79,6 +79,10 @@ func (c *Coordinator) inputs(buildID, ref, sha string, s *config.BuildSettings) 
 	if v["JDK_VERSION"] == "" {
 		v["JDK_VERSION"] = "17"
 	}
+	// Node for a project that pins none: this machine's.
+	if node := localNode(); node != "" {
+		v["JS_NODE_DEFAULT"] = node
+	}
 	if s.Signing {
 		v["USE_SIGNING"] = "true"
 	}

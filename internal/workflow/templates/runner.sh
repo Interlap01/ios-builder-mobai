@@ -79,7 +79,8 @@ js_detect_manager() {
 }
 
 # The Node version the project asks for: .nvmrc or .node-version, else the
-# first comparator of engines.node, else 22. A leading "v" or range prefix
+# first comparator of engines.node, else JS_NODE_DEFAULT (the major of
+# the developer's own Node), else 22. A leading "v" or range prefix
 # is dropped: nvm, n and setup-node all take "20.11.1" and "24.x" as they are.
 js_node_version() {
   js_version=""
@@ -96,7 +97,7 @@ js_node_version() {
   js_version=$(printf '%s' "$js_version" | sed -E 's/^(>=|<=|>|<|=|\^|~|v)+//')
   case "$js_version" in
     [0-9]*|lts/*) ;;
-    *) js_version=22 ;;
+    *) js_version=${JS_NODE_DEFAULT:-22} ;;
   esac
   printf '%s\n' "$js_version"
 }

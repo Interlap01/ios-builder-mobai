@@ -103,12 +103,10 @@ func (c *Coordinator) workflowInputs(buildID, ref string, s *config.BuildSetting
 	if s.Scheme != "" {
 		inputs["scheme"] = s.Scheme
 	}
-	// The Flutter SDK version must match the local one for hot reload.
-	if c.config.Flutter.Version != "" {
-		inputs["flutter_version"] = c.config.Flutter.Version
-	}
-	if c.config.KMP.JDKVersion != "" {
-		inputs["jdk_version"] = c.config.KMP.JDKVersion
+	// The Flutter SDK version must match the local one for hot reload; Node
+	// is this machine's, used when the project pins none.
+	if t := ToolchainInput(c.config.Flutter.Version, c.config.KMP.JDKVersion); t != "" {
+		inputs["toolchain"] = t
 	}
 	return inputs
 }
@@ -116,7 +114,7 @@ func (c *Coordinator) workflowInputs(buildID, ref string, s *config.BuildSetting
 // buildInputs are the ios-build.yml inputs: the shared ones plus signing,
 // configuration, profile and build number. `profile` and `build_number` go
 // only when set, since an older workflow file rejects inputs it does not
-// declare, and build_number is the tenth and last input GitHub allows.
+// declare; the workflow declares nine of the ten inputs GitHub allows.
 func (c *Coordinator) buildInputs(buildID, ref string, s *config.BuildSettings, buildNumber string) map[string]string {
 	inputs := c.workflowInputs(buildID, ref, s)
 	if s.Signing {

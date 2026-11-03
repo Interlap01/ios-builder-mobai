@@ -48,16 +48,12 @@ on:
         required: false
         type: boolean
         default: false
-      flutter_version:
-        description: 'Flutter version to use (e.g., 3.24.0). Empty means latest stable.'
+      # The tool versions in one input, as in ios-build.yml.
+      toolchain:
+        description: 'Tool versions as JSON: {"flutter": "3.24.0", "jdk": "17", "node": "24"}. A missing one: the project''s own, else latest stable Flutter, JDK 17 and Node 22.'
         required: false
         type: string
-        default: ''
-      jdk_version:
-        description: 'JDK version for Kotlin Multiplatform Gradle builds (e.g., 17).'
-        required: false
-        type: string
-        default: '17'
+        default: '{}'
 
 jobs:
   simulator:
@@ -94,8 +90,7 @@ jobs:
           IN_IOS_PATH: ${{ inputs.ios_path }}
           IN_SCHEME: ${{ inputs.scheme }}
           IN_DURATION: ${{ inputs.duration }}
-          IN_FLUTTER_VERSION: ${{ inputs.flutter_version }}
-          IN_JDK_VERSION: ${{ inputs.jdk_version }}
+          IN_TOOLCHAIN: ${{ inputs.toolchain }}
         run: |
           set -e
           # The configuration: the nearest mobai.json at or above the project
@@ -124,8 +119,11 @@ jobs:
           # Else the Flutter the project pins with fvm.
           FVM=$(jq -r '.flutter // empty' "$DIR/.fvmrc" 2>/dev/null || true)
           [ -n "$FVM" ] || FVM=$(jq -r '.flutterSdkVersion // empty' "$DIR/.fvm/fvm_config.json" 2>/dev/null || true)
-          param flutter_version  "$IN_FLUTTER_VERSION" '.flutter.version' "$FVM"
-          param jdk_version      "$IN_JDK_VERSION" '.kmp.jdkVersion' '17'
+          tool() { jq -r --arg k "$1" '.[$k] // empty' <<< "${IN_TOOLCHAIN:-null}" 2>/dev/null || true; }
+          param flutter_version  "$(tool flutter)" '.flutter.version' "$FVM"
+          param jdk_version      "$(tool jdk)" '.kmp.jdkVersion' '17'
+          # The developer's Node, for a project that pins none.
+          param node_version     "$(tool node)" '""' ''
 
       # Starts the simulator booting in the background (cached, so later runs
       # boot fast) while the app builds.
@@ -301,6 +299,8 @@ jobs:
       - name: Resolve JS toolchain
         id: js
         if: steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo'
+        env:
+          JS_NODE_DEFAULT: ${{ steps.params.outputs.node_version }}
         run: |
           set -e
           # >>> js toolchain (keep identical across ios-build.yml, ios-share.yml, runner.sh)
@@ -335,7 +335,8 @@ jobs:
           }
 
           # The Node version the project asks for: .nvmrc or .node-version, else the
-          # first comparator of engines.node, else 22. A leading "v" or range prefix
+          # first comparator of engines.node, else JS_NODE_DEFAULT (the major of
+          # the developer's own Node), else 22. A leading "v" or range prefix
           # is dropped: nvm, n and setup-node all take "20.11.1" and "24.x" as they are.
           js_node_version() {
             js_version=""
@@ -352,7 +353,7 @@ jobs:
             js_version=$(printf '%s' "$js_version" | sed -E 's/^(>=|<=|>|<|=|\^|~|v)+//')
             case "$js_version" in
               [0-9]*|lts/*) ;;
-              *) js_version=22 ;;
+              *) js_version=${JS_NODE_DEFAULT:-22} ;;
             esac
             printf '%s\n' "$js_version"
           }
@@ -485,7 +486,8 @@ jobs:
           }
 
           # The Node version the project asks for: .nvmrc or .node-version, else the
-          # first comparator of engines.node, else 22. A leading "v" or range prefix
+          # first comparator of engines.node, else JS_NODE_DEFAULT (the major of
+          # the developer's own Node), else 22. A leading "v" or range prefix
           # is dropped: nvm, n and setup-node all take "20.11.1" and "24.x" as they are.
           js_node_version() {
             js_version=""
@@ -502,7 +504,7 @@ jobs:
             js_version=$(printf '%s' "$js_version" | sed -E 's/^(>=|<=|>|<|=|\^|~|v)+//')
             case "$js_version" in
               [0-9]*|lts/*) ;;
-              *) js_version=22 ;;
+              *) js_version=${JS_NODE_DEFAULT:-22} ;;
             esac
             printf '%s\n' "$js_version"
           }

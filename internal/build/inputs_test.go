@@ -56,14 +56,23 @@ func TestSettingsPrecedence(t *testing.T) {
 	}
 }
 
+// pinNode makes this machine's Node major v for the test.
+func pinNode(t *testing.T, v string) {
+	t.Helper()
+	old := localNode
+	localNode = func() string { return v }
+	t.Cleanup(func() { localNode = old })
+}
+
 func TestGitHubInputsMapping(t *testing.T) {
 	c := NewCoordinatorWithOutput(profiledConfig(), nil, io.Discard)
+	pinNode(t, "")
 
 	s, _, _ := c.settings("", "", false)
 	got := c.buildInputs("abcdef12", "refs/ios-builder/jobs/abcdef12", s, "")
 	want := map[string]string{
 		"build_id": "abcdef12", "snapshot_ref": "refs/ios-builder/jobs/abcdef12",
-		"ios_path": "ios", "scheme": "App", "configuration": "Debug", "flutter_version": "3.24.0",
+		"ios_path": "ios", "scheme": "App", "configuration": "Debug", "toolchain": `{"flutter":"3.24.0"}`,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("without a profile the inputs must be unchanged:\n got %v\nwant %v", got, want)
@@ -88,12 +97,15 @@ func TestGitHubInputsMapping(t *testing.T) {
 	if len(got) > 10 {
 		t.Fatalf("workflow_dispatch allows at most 10 inputs, sending %d", len(got))
 	}
-	// Every declared input at once: the workflow has exactly ten.
+	// Every declared input at once: the workflow has nine, the tool versions
+	// in one of them.
 	c.config.KMP.JDKVersion = "17"
-	if got = c.buildInputs("abcdef12", "ref", s, "7"); len(got) != 10 {
-		t.Fatalf("expected all ten inputs, got %d: %v", len(got), got)
+	pinNode(t, "24")
+	if got = c.buildInputs("abcdef12", "ref", s, "7"); len(got) != 9 || got["toolchain"] != `{"flutter":"3.24.0","jdk":"17","node":"24"}` {
+		t.Fatalf("expected all nine inputs, got %d: %v", len(got), got)
 	}
 	c.config.KMP.JDKVersion = ""
+	pinNode(t, "")
 
 	// The simulator workflow declares none of the build-only inputs, and
 	// `ios share` takes no profile at all.
@@ -106,7 +118,7 @@ func TestGitHubInputsMapping(t *testing.T) {
 
 	s, _, _ = c.settings("", "", false)
 	share = c.workflowInputs("abcdef12", "ref", s)
-	want = map[string]string{"build_id": "abcdef12", "snapshot_ref": "ref", "ios_path": "ios", "scheme": "App", "flutter_version": "3.24.0"}
+	want = map[string]string{"build_id": "abcdef12", "snapshot_ref": "ref", "ios_path": "ios", "scheme": "App", "toolchain": `{"flutter":"3.24.0"}`}
 	if !reflect.DeepEqual(share, want) {
 		t.Fatalf("the share inputs must match the pre-profiles set:\n got %v\nwant %v", share, want)
 	}
@@ -130,13 +142,14 @@ func TestTriggerErrorExplainsOldWorkflow(t *testing.T) {
 
 func TestRemoteInputsMapping(t *testing.T) {
 	c := NewCoordinatorWithOutput(profiledConfig(), nil, io.Discard)
+	pinNode(t, "24")
 
 	s, _, _ := c.settings("", "", false)
 	got := c.inputs("abcdef12", "ref", "sha", s)
 	want := map[string]string{
 		"BUILD_ID": "abcdef12", "SNAPSHOT_REF": "ref", "SNAPSHOT_SHA": "sha", "IOS_PATH": "ios", "SCHEME": "App",
 		"CONFIGURATION": "Debug", "FLUTTER_VERSION": "3.24.0", "JDK_VERSION": "17", "USE_SIGNING": "false",
-		"BUILDER_REPOSITORY": "owner/repo",
+		"BUILDER_REPOSITORY": "owner/repo", "JS_NODE_DEFAULT": "24",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("without a profile the runner variables must be unchanged:\n got %v\nwant %v", got, want)

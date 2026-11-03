@@ -48,6 +48,12 @@ func NewCoordinatorWithProvider(cfg *config.Config, provider ci.Provider, w io.W
 	return build.NewCoordinatorWithProvider(cfg, provider, w)
 }
 
+// ToolchainInput is the workflows' toolchain input: the Flutter and JDK
+// versions given and this machine's Node, as JSON, "" when there are none.
+func ToolchainInput(flutter, jdk string) string {
+	return build.ToolchainInput(flutter, jdk)
+}
+
 // NewCoordinatorWithOutput creates a coordinator that renders progress to w.
 // Pass io.Discard to silence it.
 func NewCoordinatorWithOutput(cfg *config.Config, gh *github.Client, w io.Writer) *Coordinator {

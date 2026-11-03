@@ -40,16 +40,13 @@ on:
         required: false
         type: string
         default: 'Debug'
-      flutter_version:
-        description: 'Flutter version to use (e.g., 3.24.0). Empty means latest stable.'
+      # The tool versions in one input, so the workflow stays under the
+      # ten-input limit of workflow_dispatch.
+      toolchain:
+        description: 'Tool versions as JSON: {"flutter": "3.24.0", "jdk": "17", "node": "24"}. A missing one: the project''s own, else latest stable Flutter, JDK 17 and Node 22.'
         required: false
         type: string
-        default: ''
-      jdk_version:
-        description: 'JDK version for Kotlin Multiplatform Gradle builds (e.g., 17).'
-        required: false
-        type: string
-        default: '17'
+        default: '{}'
       # One input for the profile fields that are not inputs of their own, so
       # the workflow stays under the ten-input limit of workflow_dispatch.
       profile:
@@ -57,7 +54,7 @@ on:
         required: false
         type: string
         default: '{}'
-      # The tenth and last input workflow_dispatch allows; combine before adding.
+      # The ninth input; workflow_dispatch allows ten, so combine before adding.
       build_number:
         description: 'CFBundleVersion to stamp on the build: N, or X.Y.Z+N to set the marketing version too. Empty leaves the project as is.'
         required: false
@@ -98,8 +95,7 @@ jobs:
           IN_SCHEME: ${{ inputs.scheme }}
           IN_USE_SIGNING: ${{ inputs.use_signing }}
           IN_CONFIGURATION: ${{ inputs.configuration }}
-          IN_FLUTTER_VERSION: ${{ inputs.flutter_version }}
-          IN_JDK_VERSION: ${{ inputs.jdk_version }}
+          IN_TOOLCHAIN: ${{ inputs.toolchain }}
           IN_PROFILE: ${{ inputs.profile }}
           IN_BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
@@ -143,8 +139,11 @@ jobs:
           # Else the Flutter the project pins with fvm.
           FVM=$(jq -r '.flutter // empty' "$DIR/.fvmrc" 2>/dev/null || true)
           [ -n "$FVM" ] || FVM=$(jq -r '.flutterSdkVersion // empty' "$DIR/.fvm/fvm_config.json" 2>/dev/null || true)
-          param flutter_version  "$IN_FLUTTER_VERSION" '.flutter.version' "$FVM"
-          param jdk_version      "$IN_JDK_VERSION" '.kmp.jdkVersion' '17'
+          tool() { jq -r --arg k "$1" '.[$k] // empty' <<< "${IN_TOOLCHAIN:-null}" 2>/dev/null || true; }
+          param flutter_version  "$(tool flutter)" '.flutter.version' "$FVM"
+          param jdk_version      "$(tool jdk)" '.kmp.jdkVersion' '17'
+          # The developer's Node, for a project that pins none.
+          param node_version     "$(tool node)" '""' ''
           # A build number only comes from `builder ios release`, never the file.
           param build_number     "$IN_BUILD_NUMBER" '""' ''
 
@@ -357,6 +356,8 @@ jobs:
       - name: Resolve JS toolchain
         id: js
         if: steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo'
+        env:
+          JS_NODE_DEFAULT: ${{ steps.params.outputs.node_version }}
         run: |
           set -e
           # >>> js toolchain (keep identical across ios-build.yml, ios-share.yml, runner.sh)
@@ -391,7 +392,8 @@ jobs:
           }
 
           # The Node version the project asks for: .nvmrc or .node-version, else the
-          # first comparator of engines.node, else 22. A leading "v" or range prefix
+          # first comparator of engines.node, else JS_NODE_DEFAULT (the major of
+          # the developer's own Node), else 22. A leading "v" or range prefix
           # is dropped: nvm, n and setup-node all take "20.11.1" and "24.x" as they are.
           js_node_version() {
             js_version=""
@@ -408,7 +410,7 @@ jobs:
             js_version=$(printf '%s' "$js_version" | sed -E 's/^(>=|<=|>|<|=|\^|~|v)+//')
             case "$js_version" in
               [0-9]*|lts/*) ;;
-              *) js_version=22 ;;
+              *) js_version=${JS_NODE_DEFAULT:-22} ;;
             esac
             printf '%s\n' "$js_version"
           }
@@ -539,7 +541,8 @@ jobs:
           }
 
           # The Node version the project asks for: .nvmrc or .node-version, else the
-          # first comparator of engines.node, else 22. A leading "v" or range prefix
+          # first comparator of engines.node, else JS_NODE_DEFAULT (the major of
+          # the developer's own Node), else 22. A leading "v" or range prefix
           # is dropped: nvm, n and setup-node all take "20.11.1" and "24.x" as they are.
           js_node_version() {
             js_version=""
@@ -556,7 +559,7 @@ jobs:
             js_version=$(printf '%s' "$js_version" | sed -E 's/^(>=|<=|>|<|=|\^|~|v)+//')
             case "$js_version" in
               [0-9]*|lts/*) ;;
-              *) js_version=22 ;;
+              *) js_version=${JS_NODE_DEFAULT:-22} ;;
             esac
             printf '%s\n' "$js_version"
           }
@@ -913,11 +916,29 @@ jobs:
           # React, which never connects to Metro: no hot reload, no dev menu.
           # Before a Debug build, a pod whose record does not say Debug gets
           # its Debug files from React Native's own script now, files a later
-          # pod install keeps even when it clears the record. Anything
-          # missing (no React Native, no tarball) leaves the pods as they are.
+          # pod install keeps even when it clears the record. Expo's
+          # precompiled modules switch the same way, and their record can say
+          # debug over Release files (Expo's pod install writes debug into a
+          # missing one), which put Release Expo modules beside the Debug
+          # React and crashed the app at launch; so each gets its Debug files
+          # from Expo's own script before every Debug build (a few MB).
+          # Anything missing (no React Native, no tarball) leaves the pods as
+          # they are.
           debug_rn_prebuilts() {
-            local pods="$1" rn version pod script tarball
+            local pods="$1" rn version pod script tarball expo dir product
             [ -d "$pods" ] || return 0
+            expo=$(cd "$pods/.." && node -p "require.resolve('expo-modules-autolinking/scripts/ios/replace-xcframework.js', {paths: [process.cwd()]})" 2>/dev/null) || expo=""
+            if [ -n "$expo" ]; then
+              for tarball in "$pods"/*/artifacts/*-debug.tar.gz; do
+                [ -f "$tarball" ] || continue
+                dir=$(dirname "$(dirname "$tarball")")
+                product=$(basename "$tarball" -debug.tar.gz)
+                echo "Putting the Debug build of $product in place"
+                # Any record but debug makes the script replace the files.
+                printf release > "$dir/artifacts/.last_build_configuration"
+                node "$expo" -c debug -m "$product" -x "$dir" || echo "::warning::Could not put the Debug build of $product in place; the app may link its Release build."
+              done
+            fi
             rn=$(cd "$pods/.." && node -p "require('path').dirname(require.resolve('react-native/package.json', {paths: [process.cwd()]}))" 2>/dev/null) || return 0
             version=$(node -p "require(process.argv[1]).version" "$rn/package.json" 2>/dev/null) || return 0
             while IFS=: read -r pod script tarball; do
