@@ -1073,10 +1073,22 @@ jobs:
             fi
             apply_build_number
             XCODE_XCCONFIG_FILE="$RUNNER_TEMP/mobai-signing.xcconfig"
+            # Each target's profile goes in here too, by its bundle id: the
+            # command may make the project again (an Expo prebuild, a
+            # config plugin's extension target) and drop what was written
+            # into the targets above, and XCODE_XCCONFIG_FILE outranks the
+            # targets' own settings. A target with no profile of its own
+            # (pods, frameworks) gets none, as before.
+            xcconfig_name() { printf '%s' "$1" | tr -c 'A-Za-z0-9' '_'; }
             {
               echo "CODE_SIGN_STYLE = Manual"
               echo "DEVELOPMENT_TEAM = $DEVELOPMENT_TEAM"
               echo "CODE_SIGN_IDENTITY = $CODE_SIGN_IDENTITY"
+              echo "MOBAI_PROFILE_$(xcconfig_name "$PROFILE_BUNDLE_ID") = $PROVISIONING_PROFILE_NAME"
+              jq -r 'to_entries[] | "\(.key)\t\(.value)"' <<< "${EXTENSION_PROFILES:-}" 2>/dev/null | while IFS=$'\t' read -r ext_id ext_name; do
+                if [ -n "$ext_id" ]; then echo "MOBAI_PROFILE_$(xcconfig_name "$ext_id") = $ext_name"; fi
+              done
+              echo 'PROVISIONING_PROFILE_SPECIFIER = $(MOBAI_PROFILE_$(PRODUCT_BUNDLE_IDENTIFIER:identifier))'
               if [ -n "$build_number" ]; then
                 echo "CURRENT_PROJECT_VERSION = $build_number"
                 echo "FLUTTER_BUILD_NUMBER = $build_number"
