@@ -10,9 +10,10 @@ import (
 )
 
 // TestShareBuildUsesMobaiJSON runs the share workflow's build step: the
-// debug build command in the nearest mobai.json at or above the iOS project
-// builds the first app, and the generated script stays the fallback without
-// one (a release entry alone does not count).
+// build command for the configuration (debug, or simulatorRelease for a
+// Release run) in the nearest mobai.json at or above the iOS project builds
+// the first app, and the generated script stays the fallback without one (a
+// release entry alone does not count).
 func TestShareBuildUsesMobaiJSON(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell test")
@@ -25,7 +26,7 @@ func TestShareBuildUsesMobaiJSON(t *testing.T) {
 	all := steps(t, "ios-share.yml")
 	script := all[indexOfStep(t, all, "Build for the simulator")].Run
 
-	run := func(t *testing.T, mobaiJSON, iosPath, projectType string) (string, string, error) {
+	run := func(t *testing.T, mobaiJSON, iosPath, projectType string, release ...bool) (string, string, error) {
 		t.Helper()
 		ws, err := filepath.EvalSymlinks(t.TempDir())
 		if err != nil {
@@ -46,9 +47,14 @@ func TestShareBuildUsesMobaiJSON(t *testing.T) {
 			t.Fatal(err)
 		}
 		out := filepath.Join(tmp, "out")
+		configuration, entry := "Debug", "debug"
+		if len(release) > 0 && release[0] {
+			configuration, entry = "Release", "simulatorRelease"
+		}
 		cmd := exec.Command("bash", "-e", "-c", script)
 		cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "GITHUB_WORKSPACE="+ws, "RUNNER_TEMP="+tmp,
-			"GITHUB_OUTPUT="+out, "IOS_PATH="+iosPath, "SCHEME=", "PROJECT_TYPE="+projectType)
+			"GITHUB_OUTPUT="+out, "IOS_PATH="+iosPath, "SCHEME=", "PROJECT_TYPE="+projectType,
+			"CONFIGURATION="+configuration, "ENTRY="+entry)
 		log, err := cmd.CombinedOutput()
 		outputs, _ := os.ReadFile(out)
 		for _, line := range strings.Split(string(outputs), "\n") {
@@ -63,6 +69,12 @@ func TestShareBuildUsesMobaiJSON(t *testing.T) {
 	t.Run("mobai.json command", func(t *testing.T) {
 		got, ws, err := run(t, `{"build": {"ios": {"debug": {"command": "mkdir -p build/Shelf.app", "app": "build/*.app"}, "release": {"command": "exit 7", "app": "x.ipa"}}}}`, "apps/mobile/ios", "native")
 		if err != nil || got != filepath.Join(ws, "apps/mobile/build/Shelf.app") {
+			t.Fatalf("app_path %q, err %v", got, err)
+		}
+	})
+	t.Run("release builds with simulatorRelease", func(t *testing.T) {
+		got, ws, err := run(t, `{"build": {"ios": {"debug": {"command": "exit 7", "app": "x.app"}, "simulatorRelease": {"command": "mkdir -p build/Release/Shelf.app", "app": "build/Release/*.app"}}}}`, "apps/mobile/ios", "native", true)
+		if err != nil || got != filepath.Join(ws, "apps/mobile/build/Release/Shelf.app") {
 			t.Fatalf("app_path %q, err %v", got, err)
 		}
 	})

@@ -48,6 +48,15 @@ on:
         required: false
         type: boolean
         default: false
+      # Debug runs with hot reload and rebuilds; Release runs what ships,
+      # with mobai.json's simulatorRelease build. Flutter builds only Debug
+      # for the simulator.
+      configuration:
+        description: 'debug or release'
+        required: false
+        type: choice
+        options: [debug, release]
+        default: debug
       # The tool versions in one input, as in ios-build.yml.
       toolchain:
         description: 'Tool versions as JSON: {"flutter": "3.24.0", "jdk": "17", "node": "24"}. A missing one: the project''s own, else latest stable Flutter, JDK 17 and Node 22.'
@@ -146,9 +155,9 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/mobai-last-build
-          key: mobai-sim-app-${{ steps.params.outputs.ios_path }}-${{ github.run_id }}
+          key: mobai-sim-app-${{ inputs.configuration == 'release' && 'release-' || '' }}${{ steps.params.outputs.ios_path }}-${{ github.run_id }}
           restore-keys: |
-            mobai-sim-app-${{ steps.params.outputs.ios_path }}-
+            mobai-sim-app-${{ inputs.configuration == 'release' && 'release-' || '' }}${{ steps.params.outputs.ios_path }}-
 
       - name: Restore DerivedData cache
         if: steps.lastbuild.outputs.cache-matched-key == ''
@@ -619,19 +628,23 @@ jobs:
           SCHEME: ${{ steps.params.outputs.scheme }}
           PROJECT_TYPE: ${{ steps.detect.outputs.type }}
           LAST_BUILD: ${{ steps.lastbuild.outputs.cache-matched-key }}
+          # The Xcode configuration and the mobai.json entry it builds with.
+          CONFIGURATION: ${{ inputs.configuration == 'release' && 'Release' || 'Debug' }}
+          ENTRY: ${{ inputs.configuration == 'release' && 'simulatorRelease' || 'debug' }}
         run: |
           set -e
           BUILD_SCRIPT="$RUNNER_TEMP/mobai-build.sh"
           {
             echo 'set -e'
-            printf 'IOS_PATH=%q SCHEME=%q PROJECT_TYPE=%q\n' "$IOS_PATH" "$SCHEME" "$PROJECT_TYPE"
+            printf 'IOS_PATH=%q SCHEME=%q PROJECT_TYPE=%q CONFIGURATION=%q\n' "$IOS_PATH" "$SCHEME" "$PROJECT_TYPE" "$CONFIGURATION"
             cat <<'MOBAI_BUILD'
           exec 3>&1 1>&2
           cd "$GITHUB_WORKSPACE"
 
           if [ "$PROJECT_TYPE" = "flutter" ]; then
             # Flutter drives xcodebuild itself and puts the bundle in a known
-            # place, so there is nothing to detect here.
+            # place, so there is nothing to detect here. It builds only Debug
+            # for the simulator.
             flutter build ios --simulator --debug
             APP_PATH=$(find build/ios/iphonesimulator -maxdepth 1 -name '*.app' -print -quit)
           else
@@ -701,7 +714,7 @@ jobs:
 
             xcodebuild "$TARGET_FLAG" "$TARGET_PATH" \
               -scheme "$SCHEME" \
-              -configuration Debug \
+              -configuration "$CONFIGURATION" \
               "$DEST_FLAG" "$DEST_VALUE" \
               -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
               COMPILER_INDEX_STORE_ENABLE=NO \
@@ -713,7 +726,7 @@ jobs:
             # than one app target.
             APP_PATH=$(xcodebuild "$TARGET_FLAG" "$TARGET_PATH" \
               -scheme "$SCHEME" \
-              -configuration Debug \
+              -configuration "$CONFIGURATION" \
               "$DEST_FLAG" "$DEST_VALUE" \
               -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
               -showBuildSettings -json 2>/dev/null \
@@ -723,7 +736,7 @@ jobs:
                        | map(.TARGET_BUILD_DIR + "/" + .FULL_PRODUCT_NAME)
                        | first // empty' || true)
             if [ ! -d "$APP_PATH" ]; then
-              APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit 2>/dev/null || true)
+              APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData/Build/Products/$CONFIGURATION-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit 2>/dev/null || true)
             fi
             cd "$GITHUB_WORKSPACE"
           fi
@@ -738,14 +751,14 @@ jobs:
           MOBAI_BUILD
           } > "$BUILD_SCRIPT"
 
-          # The debug build command committed in mobai.json (the nearest one
-          # at or above the iOS project) builds instead of the script, which
-          # stays the fallback. mobai-ci share reads the same file for
-          # rebuilds.
+          # The build command committed in mobai.json for the configuration
+          # (debug, or simulatorRelease; the nearest file at or above the iOS
+          # project) builds instead of the script, which stays the fallback.
+          # mobai-ci share reads the same file for rebuilds.
           TOP=$(cd "$GITHUB_WORKSPACE" && pwd -P)
           DIR=$(cd "$GITHUB_WORKSPACE/$IOS_PATH" 2>/dev/null && pwd -P || echo "$TOP")
           while [ ! -f "$DIR/mobai.json" ] && [ "$DIR" != "$TOP" ] && [ "$DIR" != / ]; do DIR=$(dirname "$DIR"); done
-          CMD=$(jq -r '.build.ios.debug.command // empty' "$DIR/mobai.json" 2>/dev/null || true)
+          CMD=$(jq -r --arg e "$ENTRY" '.build.ios[$e].command // empty' "$DIR/mobai.json" 2>/dev/null || true)
           # The script above is written either way: rebuilds use it later.
           APP_PATH=""
           if [ -n "$LAST_BUILD" ]; then
@@ -757,7 +770,7 @@ jobs:
           elif [ -n "$CMD" ]; then
             echo "Building with the command in $DIR/mobai.json: $CMD"
             (cd "$DIR" && bash -c "$CMD")
-            APP=$(jq -r '.build.ios.debug.app // empty' "$DIR/mobai.json")
+            APP=$(jq -r --arg e "$ENTRY" '.build.ios[$e].app // empty' "$DIR/mobai.json")
             APP_PATH=$(cd "$DIR" && [ -n "$APP" ] && ls -td $APP 2>/dev/null | head -1 || true)
             if [ -z "$APP_PATH" ]; then
               echo "::error::The build in $DIR/mobai.json made nothing at its \"app\" path (${APP:-not set})"
@@ -804,7 +817,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: ${{ runner.temp }}/mobai-last-build
-          key: mobai-sim-app-${{ steps.params.outputs.ios_path }}-${{ github.run_id }}
+          key: mobai-sim-app-${{ inputs.configuration == 'release' && 'release-' || '' }}${{ steps.params.outputs.ios_path }}-${{ github.run_id }}
 
       # Installs the build on the simulator and publishes it to the MobAI app.
       # The step (and the job) stay running until the simulator is released
